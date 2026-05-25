@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Board from '../components/Board'
 import Card from '../components/Card'
 import {
@@ -10,6 +10,54 @@ import {
   getSoloMode, setSoloMode, endSoloRound, revealNextSoloClue,
 } from '../utils/gameStore'
 import { generateCard, generateDraftOptions, generateCardFromAnswer, generateSoloCard, validateAnswer } from '../utils/generateCard'
+
+// ── Zoações ────────────────────────────────────────────────────────────────
+const TAUNTS = {
+  wrongSolo: (name) => [
+    `Putz, ${name}! Minha vó sabia essa 👵`,
+    `${name} passou batido... próxima vida vai! 💀`,
+    `Anotou aí, ${name}? Estuda mais! 📚`,
+    `Nossa ${name}, isso tava na cara! 😂`,
+    `${name} errou feio. FEIO mesmo 🤦`,
+    `Alguém avisa ${name} que o jogo começou? 😅`,
+    `${name}: 0 × Perfil: 1 💀`,
+    `${name} foi ali e já volta 👋`,
+  ],
+  wonEasy: (name, n) => [
+    `${name} na ${n}ª dica?! Tá colando! 👀`,
+    `Ninguém segura ${name} hoje! 🔥`,
+    `Só ${n} dica${n !== 1 ? 's' : ''}?! ${name} tá dominando 🚀`,
+    `${name} nem deixou a gente pensar! 🤯`,
+    `${name} no modo deus. Alguém para esse cara 😤`,
+  ],
+  wonHard: (name, n) => [
+    `${name} precisou de ${n} dicas... mas chegou lá! 👏`,
+    `Só na ${n}ª dica ${name} pegou. Quase 😂`,
+    `${name} foi de tartaruga, mas chegou! 🐢`,
+    `${n} dicas pra ${name}. Mas valeu, né! 😅`,
+    `${name} sofreu, mas ganhou. Que emoção 🥹`,
+  ],
+  farBehind: (name) => [
+    `${name}, o jogo começou faz tempo! 🐢`,
+    `Ei ${name}, tá dormindo? Acorda! 😴`,
+    `${name} ligou o modo contemplativo 🧘`,
+    `${name} tá curioso pra saber como é o último lugar 😆`,
+    `Força, ${name}! Ainda dá pra ganhar... talvez 🫡`,
+    `${name} tá usando a estratégia do INSS: vai devagar 🐌`,
+  ],
+  overtake: (mover, passed) => [
+    `${mover} deixou ${passed} pra trás! Ciao! 👋`,
+    `${mover} passou ${passed} na curva sem nem olhar 😎`,
+    `${passed} olha pra trás e vê ${mover} passando! 😆`,
+    `${mover} voou! ${passed} ficou na poeira 🌪️`,
+    `Tchau, ${passed}! ${mover} tá na frente agora 🏃`,
+    `${passed} levou uma rasteira de ${mover}! 💨`,
+  ],
+}
+
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
 
 const CATEGORY_META = {
   PESSOA: { label: 'Pessoa', icon: '👤', gradient: 'linear-gradient(135deg,#4338CA,#6366F1,#818CF8)', color: '#6366F1', glow: 'rgba(99,102,241,0.4)' },
@@ -94,18 +142,27 @@ export default function Game() {
     try {
       const correct = await validateAnswer(soloAnswer, card.answer)
       if (correct) {
-        const score = Math.max(0, 12 - card.revealed.length)
+        const revCount = card.revealed.length
+        const score    = Math.max(0, 12 - revCount)
         setSoloResult({ winnerId: pid, score })
         setSoloPhase('result')
+        // Zoação baseada na facilidade
+        const guesser = state.players.find(p => p.id === pid)
+        if (guesser) {
+          if (revCount <= 2)      addToast(pickRandom(TAUNTS.wonEasy(guesser.name, revCount + 1)))
+          else if (revCount >= 9) addToast(pickRandom(TAUNTS.wonHard(guesser.name, revCount + 1)))
+        }
       } else {
         setSoloAnswer('')
+        // Zoação pelo erro
+        const guesser = state.players.find(p => p.id === pid)
+        if (guesser) addToast(pickRandom(TAUNTS.wrongSolo(guesser.name)))
+
         // Verifica se ainda há dicas para revelar
         if (card.revealed.length >= 12) {
-          // Todas as dicas já estavam à mostra — ninguém acerta
           setSoloResult({ winnerId: null, score: 0 })
           setSoloPhase('result')
         } else {
-          // Revela a próxima dica e passa a vez
           revealNextSoloClue()
           advanceSoloGuesser(pid, state.players)
           setSoloWrong(true)
@@ -126,8 +183,77 @@ export default function Game() {
 
   function handleSoloContinue() {
     endSoloRound(soloResult?.winnerId ?? null)
-    // O endSoloRound já avança currentReaderId no store → próxima carta começa pelo jogador seguinte
+    checkFarBehind(soloResult?.winnerId ?? null)
     resetSoloState(null)
+  }
+
+  // ── Toast / Zoação ────────────────────────────────────────────────────────
+  const [toasts, setToasts] = useState([])
+
+  const addToast = useCallback((message) => {
+    const id = Date.now() + Math.random()
+    setToasts(prev => [...prev.slice(-2), { id, message, exiting: false }])
+    // marca como saindo antes de remover para animar
+    setTimeout(() => {
+      setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t))
+    }, 3400)
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id))
+    }, 3800)
+  }, [])
+
+  // Detecção de ultrapassagens
+  const prevPositionsRef = useRef({})
+  useEffect(() => {
+    const active = state.players.filter(p => p.active)
+    const prev   = prevPositionsRef.current
+
+    const overtakes = []
+    for (const mover of active) {
+      const prevPos = prev[mover.id]
+      if (prevPos === undefined || mover.position <= prevPos) continue
+      for (const other of active) {
+        if (other.id === mover.id) continue
+        const otherPrev = prev[other.id] ?? other.position
+        // mover estava atrás, agora está igual ou à frente — e o outro já tinha saído do 0
+        if (prevPos < otherPrev && mover.position >= other.position && otherPrev > 0) {
+          overtakes.push({ mover: mover.name, passed: other.name })
+        }
+      }
+    }
+
+    prevPositionsRef.current = Object.fromEntries(active.map(p => [p.id, p.position]))
+
+    overtakes.slice(0, 2).forEach((o, i) => {
+      setTimeout(() => addToast(pickRandom(TAUNTS.overtake(o.mover, o.passed))), i * 900)
+    })
+  }, [state.players, addToast])
+
+  // Zoação para quem está muito atrás do líder (>25 casas)
+  function checkFarBehind(excludeId = null) {
+    const active = state.players.filter(p => p.active && p.id !== excludeId)
+    if (active.length < 2) return
+    const leader   = active.reduce((a, b) => a.position > b.position ? a : b)
+    const laggards = active.filter(p => p.id !== leader.id && leader.position - p.position > 25)
+    if (laggards.length === 0) return
+    const target = laggards[Math.floor(Math.random() * laggards.length)]
+    setTimeout(() => addToast(pickRandom(TAUNTS.farBehind(target.name))), 1600)
+  }
+
+  // Encerramento de rodada normal com zoação
+  function handleEndRound(winnerId) {
+    if (winnerId !== null) {
+      const player = activePlayers.find(p => p.id === winnerId)
+      if (player) {
+        if (revealedCount <= 3) {
+          addToast(pickRandom(TAUNTS.wonEasy(player.name, revealedCount)))
+        } else if (revealedCount >= 15) {
+          addToast(pickRandom(TAUNTS.wonHard(player.name, revealedCount)))
+        }
+      }
+    }
+    endRound(winnerId)
+    checkFarBehind(winnerId)
   }
 
   useEffect(() => subscribe(setLocalState), [])
@@ -336,6 +462,8 @@ export default function Game() {
                   currentReaderId={currentReaderId}
                   revealedCount={revealedCount}
                   winnerScore={winnerScore}
+                  onEndRound={handleEndRound}
+                  soloMode={soloMode}
                 />
               ))}
             </div>
@@ -357,7 +485,7 @@ export default function Game() {
           ) : soloMode ? (
             <SoloBanner hasKey={hasKey} />
           ) : card && currentReader ? (
-            <RoundPanel reader={currentReader} revealedCount={revealedCount} card={card}/>
+            <RoundPanel reader={currentReader} revealedCount={revealedCount} card={card} onEndRound={handleEndRound}/>
           ) : (
             <ReadyBanner reader={currentReader} hasKey={hasKey} onGenerate={handleGenerate} generating={generating}/>
           )}
@@ -431,6 +559,9 @@ export default function Game() {
           </div>
         </div>
       </div>
+
+      {/* ── Toast / Zoação ── */}
+      <ToastContainer toasts={toasts} />
 
       {/* ── TV Mode overlay ── */}
       {tvMode && card && (
@@ -706,7 +837,7 @@ function ReadyBanner({ reader, hasKey, onGenerate, generating }) {
 }
 
 // ── Round action panel ──
-function RoundPanel({ reader, revealedCount, card }) {
+function RoundPanel({ reader, revealedCount, card, onEndRound }) {
   const readerScore = revealedCount
   const winnerScore = Math.max(0, 20 - revealedCount)
 
@@ -764,7 +895,7 @@ function RoundPanel({ reader, revealedCount, card }) {
         </div>
         <div style={{ flex: 1 }}/>
         <button
-          onClick={() => endRound(null)}
+          onClick={() => onEndRound(null)}
           style={s.btnNoWinner}
           title="Ninguém acertou — só o leitor anda"
         >
@@ -776,9 +907,9 @@ function RoundPanel({ reader, revealedCount, card }) {
 }
 
 // ── Player row ──
-function PlayerRow({ player, isReader, card, currentReaderId, revealedCount, winnerScore }) {
+function PlayerRow({ player, isReader, card, currentReaderId, revealedCount, winnerScore, onEndRound, soloMode }) {
   const hasCard    = !!card
-  const showTrophy = hasCard && currentReaderId !== null && player.active && !isReader
+  const showTrophy = hasCard && currentReaderId !== null && player.active && !isReader && !soloMode
 
   return (
     <div style={{
@@ -840,7 +971,7 @@ function PlayerRow({ player, isReader, card, currentReaderId, revealedCount, win
       {/* Trophy button */}
       {showTrophy && (
         <button
-          onClick={() => endRound(player.id)}
+          onClick={() => onEndRound(player.id)}
           title={`${player.name} acertou! +${winnerScore} casas`}
           style={s.btnTrophy}
         >
@@ -990,6 +1121,48 @@ function TVOverlay({ card, onExit }) {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+// ── Toast container ──
+function ToastContainer({ toasts }) {
+  if (toasts.length === 0) return null
+  return (
+    <div style={{
+      position: 'fixed',
+      bottom: 28,
+      left: '50%',
+      transform: 'translateX(-50%)',
+      display: 'flex',
+      flexDirection: 'column-reverse',
+      gap: 8,
+      zIndex: 500,
+      pointerEvents: 'none',
+      alignItems: 'center',
+    }}>
+      {toasts.map(t => (
+        <div key={t.id} style={{
+          background: 'linear-gradient(135deg, rgba(15,23,42,0.97), rgba(13,21,48,0.97))',
+          border: '1px solid rgba(99,102,241,0.45)',
+          borderRadius: 14,
+          padding: '11px 20px',
+          fontSize: 14,
+          fontWeight: 700,
+          color: '#F1F5F9',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.6), 0 0 24px rgba(99,102,241,0.18)',
+          backdropFilter: 'blur(16px)',
+          whiteSpace: 'nowrap',
+          maxWidth: '88vw',
+          letterSpacing: '0.2px',
+          animation: t.exiting
+            ? 'toastOut 0.4s ease forwards'
+            : 'toastIn 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards',
+          fontFamily: "'Space Grotesk', sans-serif",
+        }}>
+          {t.message}
+        </div>
+      ))}
     </div>
   )
 }
