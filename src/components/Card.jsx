@@ -31,7 +31,7 @@ const CATEGORY_META = {
   },
 }
 
-export default function Card({ card, onToggleClue, onRevealAnswer, onHideAnswer }) {
+export default function Card({ card, onToggleClue, onRevealAnswer, onHideAnswer, soloMode = false }) {
   if (!card) return null
 
   const meta = CATEGORY_META[card.category] || {
@@ -117,15 +117,17 @@ export default function Card({ card, onToggleClue, onRevealAnswer, onHideAnswer 
             }}>
               {card.answer}
             </span>
-            <button onClick={onHideAnswer} style={{
-              padding: '5px 14px', borderRadius: '8px',
-              background: 'rgba(255,255,255,0.07)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: '#94A3B8', fontWeight: 600, fontSize: '12px',
-              cursor: 'pointer', flexShrink: 0,
-            }}>
-              Ocultar
-            </button>
+            {!soloMode && (
+              <button onClick={onHideAnswer} style={{
+                padding: '5px 14px', borderRadius: '8px',
+                background: 'rgba(255,255,255,0.07)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: '#94A3B8', fontWeight: 600, fontSize: '12px',
+                cursor: 'pointer', flexShrink: 0,
+              }}>
+                Ocultar
+              </button>
+            )}
           </>
         ) : (
           <>
@@ -134,16 +136,18 @@ export default function Card({ card, onToggleClue, onRevealAnswer, onHideAnswer 
             }}>
               {'● '.repeat(Math.min(Math.ceil(card.answer.length / 2), 8)).trim()}
             </span>
-            <button onClick={onRevealAnswer} style={{
-              padding: '6px 16px', borderRadius: '8px',
-              background: meta.gradient,
-              color: 'white', fontWeight: 700, fontSize: '12px',
-              cursor: 'pointer', flexShrink: 0,
-              boxShadow: `0 4px 12px ${meta.glow}`,
-              border: 'none',
-            }}>
-              Revelar
-            </button>
+            {!soloMode && (
+              <button onClick={onRevealAnswer} style={{
+                padding: '6px 16px', borderRadius: '8px',
+                background: meta.gradient,
+                color: 'white', fontWeight: 700, fontSize: '12px',
+                cursor: 'pointer', flexShrink: 0,
+                boxShadow: `0 4px 12px ${meta.glow}`,
+                border: 'none',
+              }}>
+                Revelar
+              </button>
+            )}
           </>
         )}
       </div>
@@ -189,29 +193,31 @@ export default function Card({ card, onToggleClue, onRevealAnswer, onHideAnswer 
                 {revealed ? clue : '● ● ● ● ● ● ● ●'}
               </span>
 
-              {/* Toggle button */}
-              <button
-                onClick={() => onToggleClue(i)}
-                style={{
-                  width: '30px', height: '30px',
-                  borderRadius: '8px',
-                  background: revealed
-                    ? meta.color
-                    : 'rgba(255,255,255,0.06)',
-                  border: revealed
-                    ? 'none'
-                    : '1px solid rgba(255,255,255,0.08)',
-                  fontSize: '14px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                  boxShadow: revealed ? `0 0 10px ${meta.glow}` : 'none',
-                }}
-                title={revealed ? 'Ocultar dica' : 'Revelar dica'}
-              >
-                {revealed ? '👁' : '🔒'}
-              </button>
+              {/* Toggle button — hidden in solo mode (system controls reveal) */}
+              {!soloMode && (
+                <button
+                  onClick={() => onToggleClue(i)}
+                  style={{
+                    width: '30px', height: '30px',
+                    borderRadius: '8px',
+                    background: revealed
+                      ? meta.color
+                      : 'rgba(255,255,255,0.06)',
+                    border: revealed
+                      ? 'none'
+                      : '1px solid rgba(255,255,255,0.08)',
+                    fontSize: '14px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    boxShadow: revealed ? `0 0 10px ${meta.glow}` : 'none',
+                  }}
+                  title={revealed ? 'Ocultar dica' : 'Revelar dica'}
+                >
+                  {revealed ? '👁' : '🔒'}
+                </button>
+              )}
             </div>
           )
         })}

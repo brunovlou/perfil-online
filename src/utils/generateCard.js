@@ -1,4 +1,4 @@
-import { getApiKey, setCard, setGenerating, getFirebaseUrl, getDraftRejected } from './gameStore'
+import { getApiKey, setCard, setGenerating, getFirebaseUrl, getDraftRejected, getSoloMode } from './gameStore'
 
 const HISTORY_KEY           = 'perfil-card-history'
 const CATEGORY_QUEUE_KEY    = 'perfil-category-queue'
@@ -468,6 +468,192 @@ export async function generateCardFromAnswer(answer, category, pessoaSubtype) {
     } catch (err) {
       lastError = err
       if (attempt === MAX_CARD_ATTEMPTS) break
+    }
+  }
+
+  setGenerating(false)
+  throw lastError ?? new Error('Não foi possível gerar uma carta válida. Tente novamente.')
+}
+
+// ── Modo Solo ──────────────────────────────────────────────────────────────
+
+// Normaliza string para comparação: minúsculas, sem acento, sem pontuação
+function normalizeStr(s) {
+  return s.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length
+  const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0))
+  for (let i = 0; i <= m; i++) dp[i][0] = i
+  for (let j = 0; j <= n; j++) dp[0][j] = j
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
+    }
+  }
+  return dp[m][n]
+}
+
+// Valida resposta: fuzzy match primeiro, depois validação semântica via IA
+export async function validateAnswer(guess, correctAnswer) {
+  const ng = normalizeStr(guess)
+  const na = normalizeStr(correctAnswer)
+
+  if (!ng) return false
+
+  // Correspondência exata normalizada
+  if (ng === na) return true
+
+  // Containment: "senna" aceita para "ayrton senna"
+  if (na.includes(ng) || ng.includes(na)) return true
+
+  // Levenshtein: tolerância de 25% do menor comprimento, máx 3
+  const dist = levenshtein(ng, na)
+  const tol  = Math.max(1, Math.floor(Math.min(ng.length, na.length) * 0.25))
+  if (dist <= Math.min(tol, 3)) return true
+
+  // Validação semântica via IA (fallback)
+  try {
+    const prompt = `Você é árbitro do jogo Perfil. A resposta correta é: "${correctAnswer}".
+O jogador digitou: "${guess}".
+
+A resposta do jogador é essencialmente a mesma coisa que a resposta correta?
+Considere como CORRETO:
+- Apelidos reconhecidos (ex: "Senna" para "Ayrton Senna", "Lula" para "Luiz Inácio Lula da Silva")
+- Erros de digitação leves (ex: "Micheal" para "Michael")
+- Variações de acentuação (ex: "Pelé" e "Pele")
+- Tradução direta amplamente usada
+
+Considere como ERRADO:
+- Respostas completamente diferentes
+- Confusão entre pessoas/lugares/coisas distintos
+
+Retorne APENAS: {"correct": true} ou {"correct": false}`
+    const text = await callOpenAI(prompt, 100)
+    const parsed = JSON.parse(text)
+    return !!parsed.correct
+  } catch {
+    return false
+  }
+}
+
+function buildSoloPrompt(category, pessoaSubtype = null, history = []) {
+  const pessoaHint = pessoaSubtype
+    ? `exatamente um(a) **${pessoaSubtype.tipo}**.
+  Exemplos do tipo: ${pessoaSubtype.ex}.
+  ⚠️ OBRIGATÓRIO: escolha exclusivamente um(a) ${pessoaSubtype.tipo}.`
+    : 'uma pessoa ou personagem famoso'
+
+  const hints = {
+    PESSOA: pessoaHint,
+    COISA:  'uma coisa (objeto, invenção, alimento, animal, conceito, fenômeno, estilo musical, obra de arte)',
+    LUGAR:  'um lugar (cidade, país, monumento, acidente geográfico, ponto turístico, bairro famoso)',
+    ANO:    'um ano histórico importante (a resposta é o ano em si, ex: "1969")',
+  }
+
+  const historyBlock = history.length > 0
+    ? `\n⛔ RESPOSTAS PROIBIDAS — já foram usadas, não podem se repetir:\n${history.map(h => `- ${h}`).join('\n')}\n`
+    : ''
+
+  return `Você é o gerador de cartas do jogo de tabuleiro Perfil, versão brasileira — MODO SOLO.
+
+Gere uma carta sobre ${hints[category]}.
+${historyBlock}
+NÍVEL DE DIFICULDADE: médio.
+- Escolha perfis que qualquer adulto brasileiro bem informado conheceria — não muito óbvios, não muito obscuros.
+- Evite os extremos: nem "Pelé, Brasil, Jesus" (óbvios demais) nem figuras completamente desconhecidas.
+- O ideal é que um jogador atento consiga acertar entre as dicas 5–9.
+- Dicas 1–4: moderadamente difíceis — detalhes menos conhecidos, curiosidades, números.
+- Dicas 5–8: médias — fatos que quem tem interesse no assunto reconhece.
+- Dicas 9–12: mais fáceis — características marcantes que a maioria dos brasileiros reconhece.
+
+REGRA CRÍTICA — CITE NOMES REAIS NAS DICAS:
+- SEMPRE cite nomes reais de pessoas, lugares, filmes, músicas, eventos, empresas.
+- PROIBIDO usar descrições vagas como "um famoso cantor", "uma grande empresa", "um país europeu".
+- A única exceção é a própria resposta: o nome da carta JAMAIS pode ser citado.
+
+REGRA CRÍTICA — DICAS INDEPENDENTES:
+- Cada dica deve fazer sentido SOZINHA, sem depender de outras.
+- PROIBIDO usar "esta", "esse", "o mesmo", "ela também", "além disso" referenciando dicas anteriores.
+
+REGRA MAIS IMPORTANTE — NUNCA REVELAR A RESPOSTA:
+- O texto da resposta JAMAIS pode aparecer em qualquer dica, nem parcialmente, nem em plural, nem em outro gênero.
+- Use pronomes ou referências indiretas: "ele", "ela", "o local", "o músico", "o evento", etc.
+
+Retorne APENAS um objeto JSON válido, sem texto adicional, sem markdown, sem \`\`\`:
+{
+  "category": "${category}",
+  "answer": "nome exato do perfil",
+  "clues": ["dica 1", "dica 2", ..., "dica 12"]
+}
+
+Exatamente 12 dicas em português brasileiro. Frases curtas e diretas (uma linha cada).`
+}
+
+export async function generateSoloCard() {
+  setGenerating(true)
+
+  const category      = getNextCategory()
+  const pessoaSubtype = category === 'PESSOA' ? getNextPessoaSubtype() : null
+  const history       = await getHistory()
+
+  const MAX_ATTEMPTS = 2
+  let lastError = null
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const text   = await callOpenAI(buildSoloPrompt(category, pessoaSubtype, history))
+      const parsed = JSON.parse(text)
+
+      if (!parsed.answer || !Array.isArray(parsed.clues)) {
+        throw new Error('Resposta da IA em formato inesperado.')
+      }
+
+      if (history.some(h => h.toLowerCase() === parsed.answer.toLowerCase())) {
+        lastError = new Error(`Resposta repetida: ${parsed.answer}`)
+        continue
+      }
+
+      while (parsed.clues.length < 12) parsed.clues.push('...')
+      parsed.clues    = parsed.clues.slice(0, 12)
+      parsed.category = category
+
+      // Corrigir dicas que vazam a resposta
+      const leakyIndices = findAllLeakyClues(parsed.clues, parsed.answer)
+      if (leakyIndices.length > 0) {
+        console.warn(`⚠️ [Solo] Dicas problemáticas: ${leakyIndices.join(', ')}. Corrigindo…`)
+        for (const idx of leakyIndices) {
+          parsed.clues[idx - 1] = await fixSingleClue(
+            parsed.answer, category, idx, parsed.clues[idx - 1]
+          )
+        }
+        const stillLeaky = findLeakyClue(parsed.clues, parsed.answer)
+        if (stillLeaky) {
+          lastError = new Error(`Dica ${stillLeaky} ainda vaza a resposta.`)
+          continue
+        }
+      }
+
+      addToHistory(parsed.answer)
+      setCard({
+        category,
+        answer:         parsed.answer,
+        clues:          parsed.clues,
+        revealed:       [],
+        answerRevealed: false,
+      })
+      return
+
+    } catch (err) {
+      lastError = err
+      if (attempt === MAX_ATTEMPTS) break
     }
   }
 

@@ -197,3 +197,49 @@ export function revealAnswer() {
 export function hideAnswer() {
   setState((s) => s.card ? { ...s, card: { ...s.card, answerRevealed: false } } : s)
 }
+
+// ── Modo Solo ──────────────────────────────────────────────────────────────
+export function getSoloMode() {
+  return localStorage.getItem('perfil-solo-mode') === 'true'
+}
+
+export function setSoloMode(val) {
+  localStorage.setItem('perfil-solo-mode', val ? 'true' : 'false')
+}
+
+// Revela sequencialmente a próxima dica ainda não revelada
+export function revealNextSoloClue() {
+  setState((s) => {
+    if (!s.card) return s
+    const total = s.card.clues.length
+    for (let i = 0; i < total; i++) {
+      if (!s.card.revealed.includes(i)) {
+        return { ...s, card: { ...s.card, revealed: [...s.card.revealed, i] } }
+      }
+    }
+    return s // todas já reveladas
+  })
+}
+
+// Encerra rodada solo: vencedor anda (12 - revealed); ninguém lê → leitor não anda
+export function endSoloRound(winnerId = null) {
+  setState((s) => {
+    const revealedCount = s.card ? s.card.revealed.length : 0
+    const winnerScore   = Math.max(0, 12 - revealedCount)
+    const activePlayers = s.players.filter(p => p.active)
+
+    // Avança para o próximo na rotação (mantém consistência)
+    const currentIdx   = activePlayers.findIndex(p => p.id === s.currentReaderId)
+    const nextIdx      = currentIdx >= 0 ? (currentIdx + 1) % activePlayers.length : 0
+    const nextReaderId = activePlayers[nextIdx]?.id ?? null
+
+    const players = s.players.map(p => {
+      let pos = p.position
+      if (winnerId !== null && p.id === winnerId)
+        pos = Math.min(BOARD_SIZE, pos + winnerScore)
+      return { ...p, position: pos }
+    })
+
+    return { ...s, players, card: null, currentReaderId: nextReaderId }
+  })
+}

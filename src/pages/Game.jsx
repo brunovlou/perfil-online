@@ -7,8 +7,9 @@ import {
   toggleClue, revealAnswer, hideAnswer, resetGame, endRound,
   getApiKey, setApiKey, getFirebaseUrl, setFirebaseUrl,
   getDraftMode, setDraftMode, addDraftRejected, newMatch,
+  getSoloMode, setSoloMode, endSoloRound, revealNextSoloClue,
 } from '../utils/gameStore'
-import { generateCard, generateDraftOptions, generateCardFromAnswer } from '../utils/generateCard'
+import { generateCard, generateDraftOptions, generateCardFromAnswer, generateSoloCard, validateAnswer } from '../utils/generateCard'
 
 const CATEGORY_META = {
   PESSOA: { label: 'Pessoa', icon: '👤', gradient: 'linear-gradient(135deg,#4338CA,#6366F1,#818CF8)', color: '#6366F1', glow: 'rgba(99,102,241,0.4)' },
@@ -48,6 +49,67 @@ export default function Game() {
     setDraftData(null)
   }
 
+  // Modo Solo
+  const [soloMode, setSoloModeLocal]       = useState(() => getSoloMode())
+  const [soloPhase, setSoloPhase]          = useState('playing') // 'playing' | 'result'
+  const [soloResult, setSoloResult]        = useState(null)       // { winnerId, winnerName, score } | null (score=0 → ninguém)
+  const [soloAnswer, setSoloAnswer]        = useState('')
+  const [soloChecking, setSoloChecking]    = useState(false)
+  const [soloSelectedPlayer, setSoloSelectedPlayer] = useState(null)
+  const [soloWrong, setSoloWrong]          = useState(false)
+
+  function toggleSoloMode() {
+    const next = !soloMode
+    setSoloModeLocal(next)
+    setSoloMode(next)
+    resetSoloState()
+  }
+
+  function resetSoloState() {
+    setSoloPhase('playing')
+    setSoloResult(null)
+    setSoloAnswer('')
+    setSoloChecking(false)
+    setSoloSelectedPlayer(null)
+    setSoloWrong(false)
+  }
+
+  async function handleSoloSubmit() {
+    if (!card || !soloAnswer.trim() || soloChecking) return
+    const pid = soloSelectedPlayer ?? activePlayers[0]?.id
+    if (pid == null) return
+    setSoloChecking(true)
+    setSoloWrong(false)
+    try {
+      const correct = await validateAnswer(soloAnswer, card.answer)
+      if (correct) {
+        const revCount = card ? card.revealed.length : 0
+        const score    = Math.max(0, 12 - revCount)
+        const player   = activePlayers.find(p => p.id === pid)
+        setSoloResult({ winnerId: pid, winnerName: player?.name ?? '', score })
+        setSoloPhase('result')
+      } else {
+        setSoloWrong(true)
+        setSoloAnswer('')
+        setTimeout(() => setSoloWrong(false), 1800)
+      }
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSoloChecking(false)
+    }
+  }
+
+  function handleSoloNoWinner() {
+    setSoloResult({ winnerId: null, winnerName: '', score: 0 })
+    setSoloPhase('result')
+  }
+
+  function handleSoloContinue() {
+    endSoloRound(soloResult?.winnerId ?? null)
+    resetSoloState()
+  }
+
   useEffect(() => subscribe(setLocalState), [])
 
   // ESC exits TV mode
@@ -65,7 +127,12 @@ export default function Game() {
 
   async function handleGenerate() {
     setError('')
-    if (draftMode) {
+    resetSoloState()
+
+    if (soloMode) {
+      try { await generateSoloCard() }
+      catch (e) { setError(e.message) }
+    } else if (draftMode) {
       setDraftLoading(true)
       try {
         const data = await generateDraftOptions()
@@ -138,6 +205,25 @@ export default function Game() {
 
         {/* Right actions */}
         <div style={s.topRight}>
+          {/* Solo mode toggle */}
+          <button
+            onClick={toggleSoloMode}
+            title={soloMode ? 'Modo Solo ativo — clique para desativar' : 'Ativar Modo Solo (sistema lê as cartas)'}
+            style={{
+              ...s.btnDraft,
+              background: soloMode
+                ? 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(79,70,229,0.15))'
+                : 'rgba(255,255,255,0.05)',
+              border: soloMode
+                ? '1px solid rgba(99,102,241,0.5)'
+                : '1px solid rgba(255,255,255,0.08)',
+              color: soloMode ? '#818CF8' : '#4B6080',
+            }}
+          >
+            <span style={{ fontSize: 14 }}>🤖</span>
+            <span>Solo{soloMode ? ' ON' : ''}</span>
+          </button>
+
           {/* Draft mode toggle */}
           <button
             onClick={toggleDraftMode}
@@ -232,16 +318,57 @@ export default function Game() {
         {/* RIGHT: Round panel + Card */}
         <div style={s.right}>
 
-          {/* Round panel */}
-          {card && currentReader ? (
+          {/* Round panel — solo or normal */}
+          {soloMode && card ? (
+            <SoloRoundPanel
+              revealedCount={revealedCount}
+              card={card}
+              soloPhase={soloPhase}
+              onRevealNext={revealNextSoloClue}
+              onNoWinner={handleSoloNoWinner}
+            />
+          ) : soloMode ? (
+            <SoloBanner hasKey={hasKey} />
+          ) : card && currentReader ? (
             <RoundPanel reader={currentReader} revealedCount={revealedCount} card={card}/>
           ) : (
             <ReadyBanner reader={currentReader} hasKey={hasKey} onGenerate={handleGenerate} generating={generating}/>
           )}
 
-          {/* Card area / Draft panel */}
+          {/* Card area */}
           <div style={s.cardWrap}>
-            {draftPhase === 'selecting' && draftData ? (
+            {/* Solo result screen */}
+            {soloMode && soloPhase === 'result' && soloResult ? (
+              <SoloResultPanel
+                result={soloResult}
+                card={card}
+                activePlayers={activePlayers}
+                onContinue={handleSoloContinue}
+              />
+            ) : soloMode && card ? (
+              /* Solo playing: card (no controls) + answer input */
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', gap: 8 }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                  <Card
+                    card={card}
+                    onToggleClue={() => {}}
+                    onRevealAnswer={() => {}}
+                    onHideAnswer={() => {}}
+                    soloMode={true}
+                  />
+                </div>
+                <SoloAnswerPanel
+                  activePlayers={activePlayers}
+                  selectedPlayer={soloSelectedPlayer}
+                  onSelectPlayer={setSoloSelectedPlayer}
+                  answer={soloAnswer}
+                  onAnswerChange={setSoloAnswer}
+                  onSubmit={handleSoloSubmit}
+                  checking={soloChecking}
+                  wrong={soloWrong}
+                />
+              </div>
+            ) : draftPhase === 'selecting' && draftData ? (
               <DraftPanel
                 data={draftData}
                 onSelect={handleDraftSelect}
@@ -256,18 +383,22 @@ export default function Game() {
               />
             ) : (
               <div style={s.emptyCard}>
-                <span style={{ fontSize: 56, lineHeight: 1 }}>🃏</span>
+                <span style={{ fontSize: 56, lineHeight: 1 }}>{soloMode ? '🤖' : '🃏'}</span>
                 <p style={s.emptyTitle}>
-                  {currentReader
-                    ? `Vez de ${currentReader.name} ler`
-                    : 'Selecione um leitor primeiro'}
+                  {soloMode
+                    ? 'Modo Solo ativo'
+                    : currentReader
+                      ? `Vez de ${currentReader.name} ler`
+                      : 'Selecione um leitor primeiro'}
                 </p>
                 <p style={s.emptyHint}>
-                  {currentReader
-                    ? draftMode
-                      ? 'Clique em "Gerar Carta" — 4 opções aparecerão para o leitor escolher'
-                      : 'Clique em "Gerar Carta" para iniciar a rodada'
-                    : 'Clique na ★ ao lado do nome de um jogador'}
+                  {soloMode
+                    ? 'Clique em "Gerar Carta" — o sistema vai revelar as dicas'
+                    : currentReader
+                      ? draftMode
+                        ? 'Clique em "Gerar Carta" — 4 opções aparecerão para o leitor escolher'
+                        : 'Clique em "Gerar Carta" para iniciar a rodada'
+                      : 'Clique na ★ ao lado do nome de um jogador'}
                 </p>
               </div>
             )}
@@ -332,6 +463,205 @@ export default function Game() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Solo banner (no card yet) ──
+function SoloBanner({ hasKey }) {
+  if (!hasKey) return null
+  return (
+    <div style={{ ...s.readyBanner, borderColor: 'rgba(99,102,241,0.3)', background: 'rgba(99,102,241,0.06)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 18 }}>🤖</span>
+        <span style={{ color: '#818CF8', fontWeight: 700, fontSize: 14 }}>Modo Solo</span>
+        <span style={{ color: '#4B6080', fontSize: 13 }}>— o sistema revela as dicas, jogadores digitam a resposta</span>
+      </div>
+    </div>
+  )
+}
+
+// ── Solo round panel (replaces RoundPanel in solo mode) ──
+function SoloRoundPanel({ revealedCount, card, soloPhase, onRevealNext, onNoWinner }) {
+  const total      = card.clues.length
+  const allRevealed = revealedCount >= total
+  const isPlaying  = soloPhase === 'playing'
+
+  return (
+    <div style={{ ...s.roundPanel, borderColor: 'rgba(99,102,241,0.4)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Solo badge */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          background: 'rgba(99,102,241,0.15)',
+          border: '1px solid rgba(99,102,241,0.3)',
+          borderRadius: 8, padding: '5px 12px',
+        }}>
+          <span style={{ fontSize: 14 }}>🤖</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#818CF8', letterSpacing: '1px' }}>MODO SOLO</span>
+        </div>
+
+        <div style={{ flex: 1 }}/>
+
+        {/* Clue counter */}
+        <div style={s.scorePill}>
+          <span style={{ color: '#4B6080', fontSize: 10, fontWeight: 600 }}>DICAS</span>
+          <span style={{ color: '#818CF8', fontSize: 18, fontWeight: 800, lineHeight: 1 }}>
+            {revealedCount}/{total}
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button
+          onClick={onRevealNext}
+          disabled={!isPlaying || allRevealed}
+          style={{
+            flex: 1,
+            background: (!isPlaying || allRevealed)
+              ? 'rgba(255,255,255,0.03)'
+              : 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(79,70,229,0.2))',
+            border: (!isPlaying || allRevealed)
+              ? '1px solid rgba(255,255,255,0.06)'
+              : '1px solid rgba(99,102,241,0.4)',
+            color: (!isPlaying || allRevealed) ? '#2A3A52' : '#A5B4FC',
+            padding: '8px 16px', borderRadius: 9,
+            fontWeight: 700, fontSize: 13, cursor: (!isPlaying || allRevealed) ? 'default' : 'pointer',
+            fontFamily: 'inherit', transition: 'all 0.2s',
+          }}
+        >
+          {allRevealed ? '✓ Todas as dicas reveladas' : '▶ Revelar próxima dica'}
+        </button>
+        <button
+          onClick={onNoWinner}
+          disabled={!isPlaying}
+          style={{ ...s.btnNoWinner, opacity: isPlaying ? 1 : 0.4 }}
+        >
+          Ninguém acertou
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Solo answer input panel ──
+function SoloAnswerPanel({ activePlayers, selectedPlayer, onSelectPlayer, answer, onAnswerChange, onSubmit, checking, wrong }) {
+  const effectivePlayer = selectedPlayer ?? activePlayers[0]?.id
+
+  return (
+    <div style={solo.panel}>
+      {/* Player selector */}
+      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', flexShrink: 0 }}>
+        {activePlayers.map(p => {
+          const sel = p.id === effectivePlayer
+          return (
+            <button
+              key={p.id}
+              onClick={() => onSelectPlayer(p.id)}
+              style={{
+                padding: '5px 12px', borderRadius: 8,
+                background: sel ? p.color : 'rgba(255,255,255,0.04)',
+                border: sel ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                color: sel ? 'white' : '#4B6080',
+                fontSize: 12, fontWeight: 700,
+                cursor: 'pointer', fontFamily: 'inherit',
+                transition: 'all 0.15s',
+                boxShadow: sel ? `0 0 10px ${p.color}60` : 'none',
+              }}
+            >
+              {p.name}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Input + submit */}
+      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+        <input
+          value={answer}
+          onChange={e => onAnswerChange(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && onSubmit()}
+          placeholder="Digite a resposta..."
+          disabled={checking}
+          style={{
+            ...solo.input,
+            borderColor: wrong ? 'rgba(248,113,113,0.5)' : 'rgba(99,102,241,0.3)',
+            boxShadow: wrong ? '0 0 12px rgba(248,113,113,0.2)' : 'none',
+          }}
+          autoComplete="off"
+        />
+        <button
+          onClick={onSubmit}
+          disabled={checking || !answer.trim()}
+          style={{
+            ...solo.submitBtn,
+            opacity: (checking || !answer.trim()) ? 0.5 : 1,
+          }}
+        >
+          {checking ? <SpinIcon/> : 'Confirmar'}
+        </button>
+      </div>
+
+      {/* Wrong feedback */}
+      {wrong && (
+        <div style={solo.wrongMsg}>
+          ❌ Resposta incorreta — tente novamente!
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Solo result panel (winner or no winner) ──
+function SoloResultPanel({ result, card, activePlayers, onContinue }) {
+  const hasWinner = result.winnerId !== null
+  const winner    = hasWinner ? activePlayers.find(p => p.id === result.winnerId) : null
+  const meta      = CATEGORY_META[card?.category] || {
+    label: '', gradient: 'linear-gradient(135deg,#374151,#6B7280)',
+    color: '#6B7280', glow: 'rgba(107,114,128,0.3)',
+  }
+
+  return (
+    <div style={solo.result}>
+      {/* Icon */}
+      <div style={{ fontSize: 56, lineHeight: 1 }}>
+        {hasWinner ? '🏆' : '😔'}
+      </div>
+
+      {/* Headline */}
+      <div style={solo.resultTitle}>
+        {hasWinner ? 'CORRETO!' : 'NINGUÉM ACERTOU'}
+      </div>
+
+      {/* Winner info */}
+      {hasWinner && winner && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <div style={solo.resultWinner}>
+            <div style={{
+              width: 14, height: 14, borderRadius: '50%',
+              background: winner.color,
+              boxShadow: `0 0 8px ${winner.color}`,
+            }}/>
+            <span>{winner.name} acertou!</span>
+          </div>
+          <div style={{ ...solo.resultScore, color: meta.color }}>
+            +{result.score} casas
+          </div>
+        </div>
+      )}
+
+      {/* Answer reveal */}
+      <div style={solo.resultAnswerBox}>
+        <span style={solo.resultAnswerLabel}>A RESPOSTA ERA</span>
+        <span style={{ ...solo.resultAnswer, color: meta.color, textShadow: `0 0 20px ${meta.glow}` }}>
+          {card?.answer}
+        </span>
+      </div>
+
+      {/* Continue */}
+      <button onClick={onContinue} style={solo.continueBtn}>
+        Continuar →
+      </button>
     </div>
   )
 }
@@ -1015,6 +1345,91 @@ const tv = {
   clueText: {
     fontSize: 15, lineHeight: 1.4, flex: 1,
     transition: 'color 0.2s',
+  },
+}
+
+// Solo mode styles
+const solo = {
+  panel: {
+    flexShrink: 0,
+    display: 'flex', flexDirection: 'column', gap: 8,
+    background: 'rgba(13,21,48,0.85)',
+    border: '1px solid rgba(99,102,241,0.2)',
+    borderRadius: 14, padding: '12px 14px',
+  },
+  input: {
+    flex: 1,
+    background: 'rgba(0,0,0,0.3)',
+    border: '1px solid',
+    borderRadius: 10, color: '#E2E8F0',
+    padding: '10px 14px', fontSize: 14,
+    outline: 'none', fontFamily: 'inherit',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
+  },
+  submitBtn: {
+    display: 'flex', alignItems: 'center', gap: 6,
+    background: 'linear-gradient(135deg, #4F46E5, #7C3AED)',
+    color: 'white', border: 'none',
+    padding: '10px 20px', borderRadius: 10,
+    fontWeight: 700, fontSize: 13,
+    cursor: 'pointer', fontFamily: 'inherit',
+    whiteSpace: 'nowrap', flexShrink: 0,
+    boxShadow: '0 4px 12px rgba(99,102,241,0.35)',
+    transition: 'opacity 0.2s',
+  },
+  wrongMsg: {
+    fontSize: 12, color: '#F87171', fontWeight: 600,
+    background: 'rgba(127,29,29,0.3)',
+    border: '1px solid rgba(220,38,38,0.25)',
+    borderRadius: 8, padding: '6px 12px',
+    textAlign: 'center',
+    animation: 'fadeIn 0.2s ease',
+  },
+
+  // Result screen
+  result: {
+    flex: 1, display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center',
+    gap: 18, padding: 24, textAlign: 'center',
+    background: 'rgba(255,255,255,0.015)',
+    border: '1px solid rgba(99,102,241,0.15)',
+    borderRadius: 16,
+  },
+  resultTitle: {
+    fontSize: 28, fontWeight: 900, letterSpacing: 4,
+    background: 'linear-gradient(135deg, #818CF8, #A855F7)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
+  },
+  resultWinner: {
+    display: 'flex', alignItems: 'center', gap: 8,
+    fontSize: 18, fontWeight: 700, color: '#F1F5F9',
+  },
+  resultScore: {
+    fontSize: 32, fontWeight: 900, lineHeight: 1,
+  },
+  resultAnswerBox: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+    background: 'rgba(0,0,0,0.3)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 12, padding: '14px 28px',
+    marginTop: 4,
+  },
+  resultAnswerLabel: {
+    fontSize: 10, fontWeight: 700, color: '#4B6080', letterSpacing: '3px',
+  },
+  resultAnswer: {
+    fontSize: 24, fontWeight: 800,
+  },
+  continueBtn: {
+    background: 'linear-gradient(135deg, #4F46E5, #7C3AED)',
+    color: 'white', border: 'none',
+    padding: '12px 32px', borderRadius: 12,
+    fontWeight: 700, fontSize: 15,
+    cursor: 'pointer', fontFamily: 'inherit',
+    boxShadow: '0 4px 16px rgba(99,102,241,0.4)',
+    marginTop: 4,
   },
 }
 
