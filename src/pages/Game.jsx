@@ -50,48 +50,67 @@ export default function Game() {
   }
 
   // Modo Solo
-  const [soloMode, setSoloModeLocal]       = useState(() => getSoloMode())
-  const [soloPhase, setSoloPhase]          = useState('playing') // 'playing' | 'result'
-  const [soloResult, setSoloResult]        = useState(null)       // { winnerId, winnerName, score } | null (score=0 → ninguém)
-  const [soloAnswer, setSoloAnswer]        = useState('')
-  const [soloChecking, setSoloChecking]    = useState(false)
-  const [soloSelectedPlayer, setSoloSelectedPlayer] = useState(null)
-  const [soloWrong, setSoloWrong]          = useState(false)
+  const [soloMode, setSoloModeLocal]         = useState(() => getSoloMode())
+  const [soloPhase, setSoloPhase]            = useState('playing') // 'playing' | 'result'
+  const [soloResult, setSoloResult]          = useState(null)       // { winnerId, score } | null
+  const [soloAnswer, setSoloAnswer]          = useState('')
+  const [soloChecking, setSoloChecking]      = useState(false)
+  const [soloCurrentGuesserId, setSoloCurrentGuesserId] = useState(null) // id do jogador da vez
+  const [soloWrong, setSoloWrong]            = useState(false)
 
   function toggleSoloMode() {
     const next = !soloMode
     setSoloModeLocal(next)
     setSoloMode(next)
-    resetSoloState()
+    resetSoloState(null)
   }
 
-  function resetSoloState() {
+  // guesterId = quem começa a próxima carta (null = não definido ainda)
+  function resetSoloState(firstGuesserId = null) {
     setSoloPhase('playing')
     setSoloResult(null)
     setSoloAnswer('')
     setSoloChecking(false)
-    setSoloSelectedPlayer(null)
+    setSoloCurrentGuesserId(firstGuesserId)
     setSoloWrong(false)
   }
 
+  // Avança para o próximo jogador ativo na rotação
+  function advanceSoloGuesser(currentId, players) {
+    const active = players.filter(p => p.active)
+    if (active.length === 0) return
+    const idx  = active.findIndex(p => p.id === currentId)
+    const next = active[(idx >= 0 ? idx + 1 : 0) % active.length]
+    setSoloCurrentGuesserId(next.id)
+  }
+
   async function handleSoloSubmit() {
-    if (!card || !soloAnswer.trim() || soloChecking) return
-    const pid = soloSelectedPlayer ?? activePlayers[0]?.id
+    if (!card || !soloAnswer.trim() || soloChecking || soloPhase !== 'playing') return
+    const pid = soloCurrentGuesserId ?? state.players.filter(p => p.active)[0]?.id
     if (pid == null) return
+
     setSoloChecking(true)
     setSoloWrong(false)
     try {
       const correct = await validateAnswer(soloAnswer, card.answer)
       if (correct) {
-        const revCount = card ? card.revealed.length : 0
-        const score    = Math.max(0, 12 - revCount)
-        const player   = activePlayers.find(p => p.id === pid)
-        setSoloResult({ winnerId: pid, winnerName: player?.name ?? '', score })
+        const score = Math.max(0, 12 - card.revealed.length)
+        setSoloResult({ winnerId: pid, score })
         setSoloPhase('result')
       } else {
-        setSoloWrong(true)
         setSoloAnswer('')
-        setTimeout(() => setSoloWrong(false), 1800)
+        // Verifica se ainda há dicas para revelar
+        if (card.revealed.length >= 12) {
+          // Todas as dicas já estavam à mostra — ninguém acerta
+          setSoloResult({ winnerId: null, score: 0 })
+          setSoloPhase('result')
+        } else {
+          // Revela a próxima dica e passa a vez
+          revealNextSoloClue()
+          advanceSoloGuesser(pid, state.players)
+          setSoloWrong(true)
+          setTimeout(() => setSoloWrong(false), 1400)
+        }
       }
     } catch (e) {
       setError(e.message)
@@ -101,13 +120,14 @@ export default function Game() {
   }
 
   function handleSoloNoWinner() {
-    setSoloResult({ winnerId: null, winnerName: '', score: 0 })
+    setSoloResult({ winnerId: null, score: 0 })
     setSoloPhase('result')
   }
 
   function handleSoloContinue() {
     endSoloRound(soloResult?.winnerId ?? null)
-    resetSoloState()
+    // O endSoloRound já avança currentReaderId no store → próxima carta começa pelo jogador seguinte
+    resetSoloState(null)
   }
 
   useEffect(() => subscribe(setLocalState), [])
@@ -130,8 +150,15 @@ export default function Game() {
     resetSoloState()
 
     if (soloMode) {
-      try { await generateSoloCard() }
-      catch (e) { setError(e.message) }
+      // Quem começa: o próximo na fila (currentReaderId já foi rotacionado pelo endSoloRound)
+      const activePl   = state.players.filter(p => p.active)
+      const firstId    = state.currentReaderId ?? activePl[0]?.id ?? null
+      resetSoloState(firstId)
+      try {
+        await generateSoloCard()
+        // Revela automaticamente a primeira dica ao gerar a carta
+        revealNextSoloClue()
+      } catch (e) { setError(e.message) }
     } else if (draftMode) {
       setDraftLoading(true)
       try {
@@ -324,7 +351,7 @@ export default function Game() {
               revealedCount={revealedCount}
               card={card}
               soloPhase={soloPhase}
-              onRevealNext={revealNextSoloClue}
+              currentPlayer={activePlayers.find(p => p.id === soloCurrentGuesserId) ?? activePlayers[0]}
               onNoWinner={handleSoloNoWinner}
             />
           ) : soloMode ? (
@@ -358,14 +385,13 @@ export default function Game() {
                   />
                 </div>
                 <SoloAnswerPanel
-                  activePlayers={activePlayers}
-                  selectedPlayer={soloSelectedPlayer}
-                  onSelectPlayer={setSoloSelectedPlayer}
+                  currentPlayer={activePlayers.find(p => p.id === soloCurrentGuesserId) ?? activePlayers[0]}
                   answer={soloAnswer}
                   onAnswerChange={setSoloAnswer}
                   onSubmit={handleSoloSubmit}
                   checking={soloChecking}
                   wrong={soloWrong}
+                  disabled={soloPhase !== 'playing'}
                 />
               </div>
             ) : draftPhase === 'selecting' && draftData ? (
@@ -482,10 +508,9 @@ function SoloBanner({ hasKey }) {
 }
 
 // ── Solo round panel (replaces RoundPanel in solo mode) ──
-function SoloRoundPanel({ revealedCount, card, soloPhase, onRevealNext, onNoWinner }) {
-  const total      = card.clues.length
-  const allRevealed = revealedCount >= total
-  const isPlaying  = soloPhase === 'playing'
+function SoloRoundPanel({ revealedCount, card, soloPhase, currentPlayer, onNoWinner }) {
+  const total     = card.clues.length
+  const isPlaying = soloPhase === 'playing'
 
   return (
     <div style={{ ...s.roundPanel, borderColor: 'rgba(99,102,241,0.4)' }}>
@@ -496,12 +521,25 @@ function SoloRoundPanel({ revealedCount, card, soloPhase, onRevealNext, onNoWinn
           background: 'rgba(99,102,241,0.15)',
           border: '1px solid rgba(99,102,241,0.3)',
           borderRadius: 8, padding: '5px 12px',
+          flexShrink: 0,
         }}>
-          <span style={{ fontSize: 14 }}>🤖</span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#818CF8', letterSpacing: '1px' }}>MODO SOLO</span>
+          <span style={{ fontSize: 13 }}>🤖</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#818CF8', letterSpacing: '1px' }}>MODO SOLO</span>
         </div>
 
-        <div style={{ flex: 1 }}/>
+        {/* Current guesser */}
+        {currentPlayer && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1 }}>
+            <div style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: currentPlayer.color,
+              boxShadow: `0 0 8px ${currentPlayer.color}`,
+              flexShrink: 0,
+            }}/>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>{currentPlayer.name}</span>
+            <span style={{ fontSize: 12, color: '#4B6080' }}>chuta agora</span>
+          </div>
+        )}
 
         {/* Clue counter */}
         <div style={s.scorePill}>
@@ -512,32 +550,14 @@ function SoloRoundPanel({ revealedCount, card, soloPhase, onRevealNext, onNoWinn
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button
-          onClick={onRevealNext}
-          disabled={!isPlaying || allRevealed}
-          style={{
-            flex: 1,
-            background: (!isPlaying || allRevealed)
-              ? 'rgba(255,255,255,0.03)'
-              : 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(79,70,229,0.2))',
-            border: (!isPlaying || allRevealed)
-              ? '1px solid rgba(255,255,255,0.06)'
-              : '1px solid rgba(99,102,241,0.4)',
-            color: (!isPlaying || allRevealed) ? '#2A3A52' : '#A5B4FC',
-            padding: '8px 16px', borderRadius: 9,
-            fontWeight: 700, fontSize: 13, cursor: (!isPlaying || allRevealed) ? 'default' : 'pointer',
-            fontFamily: 'inherit', transition: 'all 0.2s',
-          }}
-        >
-          {allRevealed ? '✓ Todas as dicas reveladas' : '▶ Revelar próxima dica'}
-        </button>
+      {/* Encerrar rodada antecipadamente */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button
           onClick={onNoWinner}
           disabled={!isPlaying}
           style={{ ...s.btnNoWinner, opacity: isPlaying ? 1 : 0.4 }}
         >
-          Ninguém acertou
+          Encerrar sem vencedor
         </button>
       </div>
     </div>
@@ -545,57 +565,57 @@ function SoloRoundPanel({ revealedCount, card, soloPhase, onRevealNext, onNoWinn
 }
 
 // ── Solo answer input panel ──
-function SoloAnswerPanel({ activePlayers, selectedPlayer, onSelectPlayer, answer, onAnswerChange, onSubmit, checking, wrong }) {
-  const effectivePlayer = selectedPlayer ?? activePlayers[0]?.id
-
+function SoloAnswerPanel({ currentPlayer, answer, onAnswerChange, onSubmit, checking, wrong, disabled }) {
   return (
     <div style={solo.panel}>
-      {/* Player selector */}
-      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', flexShrink: 0 }}>
-        {activePlayers.map(p => {
-          const sel = p.id === effectivePlayer
-          return (
-            <button
-              key={p.id}
-              onClick={() => onSelectPlayer(p.id)}
-              style={{
-                padding: '5px 12px', borderRadius: 8,
-                background: sel ? p.color : 'rgba(255,255,255,0.04)',
-                border: sel ? 'none' : '1px solid rgba(255,255,255,0.08)',
-                color: sel ? 'white' : '#4B6080',
-                fontSize: 12, fontWeight: 700,
-                cursor: 'pointer', fontFamily: 'inherit',
-                transition: 'all 0.15s',
-                boxShadow: sel ? `0 0 10px ${p.color}60` : 'none',
-              }}
-            >
-              {p.name}
-            </button>
-          )
-        })}
-      </div>
+      {/* Who's guessing */}
+      {currentPlayer && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: '50%',
+            background: currentPlayer.color,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13, fontWeight: 800, color: 'white',
+            flexShrink: 0,
+            boxShadow: `0 0 10px ${currentPlayer.color}80`,
+          }}>
+            {currentPlayer.name.charAt(0).toUpperCase()}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#F1F5F9', lineHeight: 1 }}>
+              {currentPlayer.name}
+            </span>
+            <span style={{ fontSize: 10, color: '#4B6080', fontWeight: 500 }}>
+              sua vez de adivinhar
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Input + submit */}
       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
         <input
           value={answer}
           onChange={e => onAnswerChange(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && onSubmit()}
+          onKeyDown={e => e.key === 'Enter' && !disabled && onSubmit()}
           placeholder="Digite a resposta..."
-          disabled={checking}
+          disabled={checking || disabled}
           style={{
             ...solo.input,
-            borderColor: wrong ? 'rgba(248,113,113,0.5)' : 'rgba(99,102,241,0.3)',
+            borderColor: wrong
+              ? 'rgba(248,113,113,0.5)'
+              : 'rgba(99,102,241,0.3)',
             boxShadow: wrong ? '0 0 12px rgba(248,113,113,0.2)' : 'none',
           }}
           autoComplete="off"
+          autoFocus
         />
         <button
           onClick={onSubmit}
-          disabled={checking || !answer.trim()}
+          disabled={checking || !answer.trim() || disabled}
           style={{
             ...solo.submitBtn,
-            opacity: (checking || !answer.trim()) ? 0.5 : 1,
+            opacity: (checking || !answer.trim() || disabled) ? 0.45 : 1,
           }}
         >
           {checking ? <SpinIcon/> : 'Confirmar'}
@@ -605,7 +625,7 @@ function SoloAnswerPanel({ activePlayers, selectedPlayer, onSelectPlayer, answer
       {/* Wrong feedback */}
       {wrong && (
         <div style={solo.wrongMsg}>
-          ❌ Resposta incorreta — tente novamente!
+          ❌ Errou! Próxima dica revelada…
         </div>
       )}
     </div>
@@ -614,7 +634,7 @@ function SoloAnswerPanel({ activePlayers, selectedPlayer, onSelectPlayer, answer
 
 // ── Solo result panel (winner or no winner) ──
 function SoloResultPanel({ result, card, activePlayers, onContinue }) {
-  const hasWinner = result.winnerId !== null
+  const hasWinner = result?.winnerId !== null && result?.winnerId !== undefined
   const winner    = hasWinner ? activePlayers.find(p => p.id === result.winnerId) : null
   const meta      = CATEGORY_META[card?.category] || {
     label: '', gradient: 'linear-gradient(135deg,#374151,#6B7280)',
@@ -624,7 +644,7 @@ function SoloResultPanel({ result, card, activePlayers, onContinue }) {
   return (
     <div style={solo.result}>
       {/* Icon */}
-      <div style={{ fontSize: 56, lineHeight: 1 }}>
+      <div style={{ fontSize: 52, lineHeight: 1 }}>
         {hasWinner ? '🏆' : '😔'}
       </div>
 
@@ -635,17 +655,19 @@ function SoloResultPanel({ result, card, activePlayers, onContinue }) {
 
       {/* Winner info */}
       {hasWinner && winner && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
           <div style={solo.resultWinner}>
             <div style={{
-              width: 14, height: 14, borderRadius: '50%',
+              width: 16, height: 16, borderRadius: '50%',
               background: winner.color,
-              boxShadow: `0 0 8px ${winner.color}`,
+              boxShadow: `0 0 10px ${winner.color}`,
+              flexShrink: 0,
             }}/>
-            <span>{winner.name} acertou!</span>
+            <span style={{ color: winner.color }}>{winner.name}</span>
+            <span style={{ color: '#94A3B8' }}>acertou!</span>
           </div>
-          <div style={{ ...solo.resultScore, color: meta.color }}>
-            +{result.score} casas
+          <div style={{ ...solo.resultScore, color: winner.color }}>
+            +{result.score} {result.score === 1 ? 'casa' : 'casas'}
           </div>
         </div>
       )}
