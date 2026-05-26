@@ -196,10 +196,10 @@ export default function Game() {
     // marca como saindo antes de remover para animar
     setTimeout(() => {
       setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t))
-    }, 3400)
+    }, 5500)
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id))
-    }, 3800)
+    }, 6000)
   }, [])
 
   // Detecção de ultrapassagens
@@ -1143,14 +1143,14 @@ function ToastContainer({ toasts }) {
     }}>
       {toasts.map(t => (
         <div key={t.id} style={{
-          background: 'linear-gradient(135deg, rgba(15,23,42,0.97), rgba(13,21,48,0.97))',
-          border: '1px solid rgba(99,102,241,0.45)',
-          borderRadius: 14,
-          padding: '11px 20px',
-          fontSize: 14,
+          background: 'linear-gradient(135deg, rgba(15,23,42,0.98), rgba(13,21,48,0.98))',
+          border: '2px solid rgba(99,102,241,0.6)',
+          borderRadius: 16,
+          padding: '15px 26px',
+          fontSize: 16,
           fontWeight: 700,
           color: '#F1F5F9',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.6), 0 0 24px rgba(99,102,241,0.18)',
+          boxShadow: '0 12px 40px rgba(0,0,0,0.7), 0 0 32px rgba(99,102,241,0.25)',
           backdropFilter: 'blur(16px)',
           whiteSpace: 'nowrap',
           maxWidth: '88vw',

@@ -508,6 +508,9 @@ export async function validateAnswer(guess, correctAnswer) {
 
   if (!ng) return false
 
+  // Anos exigem correspondência EXATA — sem fuzzy, sem IA
+  if (/^\d{4}$/.test(na)) return ng === na
+
   // Correspondência exata normalizada
   if (ng === na) return true
 
