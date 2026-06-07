@@ -74,7 +74,6 @@ export default function Game() {
   const [showSettings, setShowSettings]     = useState(false)
   const [apiKeyInput, setApiKeyInput]       = useState(getApiKey)
   const [firebaseInput, setFirebaseInput]   = useState(getFirebaseUrl)
-  const [tvMode, setTvMode]             = useState(false)
   const [serverReady, setServerReady]   = useState(false)
 
   // Verifica se o servidor tem chave configurada (para amigos sem chave local)
@@ -328,12 +327,6 @@ export default function Game() {
 
   useEffect(() => subscribe(setLocalState), [])
 
-  // ESC exits TV mode
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') setTvMode(false) }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
 
   const { players, card, generating, currentReaderId } = state
   const activePlayers = players.filter(p => p.active)
@@ -428,87 +421,79 @@ export default function Game() {
 
         {/* Right actions */}
         <div style={s.topRight}>
-          {/* Solo mode toggle */}
-          <button
-            onClick={toggleSoloMode}
-            title={soloMode ? 'Modo Solo ativo — clique para desativar' : 'Ativar Modo Solo (sistema lê as cartas)'}
-            style={{
-              ...s.btnDraft,
-              background: soloMode
-                ? 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(79,70,229,0.15))'
-                : 'rgba(255,255,255,0.05)',
-              border: soloMode
-                ? '1px solid rgba(99,102,241,0.5)'
-                : '1px solid rgba(255,255,255,0.08)',
-              color: soloMode ? '#818CF8' : '#4B6080',
-            }}
-          >
-            <span style={{ fontSize: 14 }}>🤖</span>
-            <span>Solo{soloMode ? ' ON' : ''}</span>
-          </button>
 
-          {/* Draft mode toggle */}
-          <button
-            onClick={toggleDraftMode}
-            title={draftMode ? 'Modo Draft ativo — clique para desativar' : 'Ativar Modo Draft'}
-            style={{
-              ...s.btnDraft,
-              background: draftMode
-                ? 'linear-gradient(135deg, rgba(16,185,129,0.25), rgba(5,150,105,0.15))'
-                : 'rgba(255,255,255,0.05)',
-              border: draftMode
-                ? '1px solid rgba(16,185,129,0.5)'
-                : '1px solid rgba(255,255,255,0.08)',
-              color: draftMode ? '#34D399' : '#4B6080',
-            }}
-          >
-            <span style={{ fontSize: 14 }}>🎯</span>
-            <span>Draft{draftMode ? ' ON' : ''}</span>
-          </button>
+          {/* ── Grupo: Modos ── */}
+          <div style={s.modeGroup}>
+            <span style={s.modeGroupLabel}>MODOS</span>
+            <div style={s.modeGroupBtns}>
 
-          {/* Leitor mode toggle — só funciona com Draft ON */}
-          <button
-            onClick={toggleLeitorMode}
-            title={
-              leitorMode
-                ? 'Modo Leitor ativo — clique para desativar'
-                : 'Ativar Modo Leitor (oculta as opções do Draft na TV; leitor vê pelo celular via QR Code). Requer Draft ON.'
-            }
-            style={{
-              ...s.btnDraft,
-              background: leitorMode && draftMode
-                ? 'linear-gradient(135deg, rgba(236,72,153,0.25), rgba(190,24,93,0.15))'
-                : 'rgba(255,255,255,0.05)',
-              border: leitorMode && draftMode
-                ? '1px solid rgba(236,72,153,0.5)'
-                : '1px solid rgba(255,255,255,0.08)',
-              color: leitorMode && draftMode ? '#F9A8D4' : '#4B6080',
-              opacity: leitorMode && !draftMode ? 0.5 : 1,
-            }}
-          >
-            <span style={{ fontSize: 14 }}>👁</span>
-            <span>Leitor{leitorMode ? ' ON' : ''}</span>
-          </button>
+              <button
+                onClick={toggleSoloMode}
+                title={soloMode ? 'Modo Solo ativo — clique para desativar' : 'Ativar Modo Solo'}
+                style={{
+                  ...s.modeBtn,
+                  background: soloMode ? 'rgba(99,102,241,0.18)' : 'transparent',
+                  color: soloMode ? '#818CF8' : '#4B6080',
+                  borderRight: '1px solid rgba(255,255,255,0.06)',
+                }}
+              >
+                <span style={s.modeBtnIcon}>🤖</span>
+                <span>Solo</span>
+                {soloMode && <span style={{ ...s.onDot, background: '#818CF8' }}/>}
+              </button>
 
-          {/* Timer mode toggle */}
-          <button
-            onClick={toggleTimerMode}
-            title={timerMode ? 'Timer ativo — clique para desativar' : 'Ativar Timer (1 min por dica)'}
-            style={{
-              ...s.btnDraft,
-              background: timerMode
-                ? 'linear-gradient(135deg, rgba(245,158,11,0.25), rgba(217,119,6,0.15))'
-                : 'rgba(255,255,255,0.05)',
-              border: timerMode
-                ? '1px solid rgba(245,158,11,0.5)'
-                : '1px solid rgba(255,255,255,0.08)',
-              color: timerMode ? '#FCD34D' : '#4B6080',
-            }}
-          >
-            <span style={{ fontSize: 14 }}>⏱</span>
-            <span>Timer{timerMode ? ' ON' : ''}</span>
-          </button>
+              <button
+                onClick={toggleDraftMode}
+                title={draftMode ? 'Modo Draft ativo — clique para desativar' : 'Ativar Modo Draft'}
+                style={{
+                  ...s.modeBtn,
+                  background: draftMode ? 'rgba(16,185,129,0.18)' : 'transparent',
+                  color: draftMode ? '#34D399' : '#4B6080',
+                  borderRight: '1px solid rgba(255,255,255,0.06)',
+                }}
+              >
+                <span style={s.modeBtnIcon}>🎯</span>
+                <span>Draft</span>
+                {draftMode && <span style={{ ...s.onDot, background: '#34D399' }}/>}
+              </button>
 
+              <button
+                onClick={toggleLeitorMode}
+                title={leitorMode ? 'Modo Leitor ativo — clique para desativar' : 'Ativar Modo Leitor (requer Draft ON)'}
+                style={{
+                  ...s.modeBtn,
+                  background: leitorMode && draftMode ? 'rgba(236,72,153,0.18)' : 'transparent',
+                  color: leitorMode && draftMode ? '#F9A8D4' : '#4B6080',
+                  opacity: leitorMode && !draftMode ? 0.4 : 1,
+                  borderRight: '1px solid rgba(255,255,255,0.06)',
+                }}
+              >
+                <span style={s.modeBtnIcon}>👁</span>
+                <span>Leitor</span>
+                {leitorMode && draftMode && <span style={{ ...s.onDot, background: '#F9A8D4' }}/>}
+              </button>
+
+              <button
+                onClick={toggleTimerMode}
+                title={timerMode ? 'Timer ativo — clique para desativar' : 'Ativar Timer (1 min por dica)'}
+                style={{
+                  ...s.modeBtn,
+                  background: timerMode ? 'rgba(245,158,11,0.18)' : 'transparent',
+                  color: timerMode ? '#FCD34D' : '#4B6080',
+                }}
+              >
+                <span style={s.modeBtnIcon}>⏱</span>
+                <span>Timer</span>
+                {timerMode && <span style={{ ...s.onDot, background: '#FCD34D' }}/>}
+              </button>
+
+            </div>
+          </div>
+
+          {/* ── Separador ── */}
+          <div style={s.topSep}/>
+
+          {/* ── Ações ── */}
           <button
             onClick={handleGenerate}
             disabled={generating || draftLoading}
@@ -518,18 +503,11 @@ export default function Game() {
               ? <><SpinIcon/> {draftLoading ? 'Buscando…' : 'Gerando…'}</>
               : card ? '⟳  Nova Carta' : '✦  Gerar Carta'}
           </button>
-          {card && (
-            <button
-              onClick={() => setTvMode(true)}
-              style={s.btnTV}
-              title="Modo TV — tela cheia para projetar"
-            >
-              📺
-            </button>
-          )}
+
           <button onClick={() => setShowSettings(true)} style={s.btnGear} title="Configurações">
             ⚙️
           </button>
+
         </div>
       </div>
 
@@ -688,11 +666,6 @@ export default function Game() {
 
       {/* ── Toast / Zoação ── */}
       <ToastContainer toasts={toasts} />
-
-      {/* ── TV Mode overlay ── */}
-      {tvMode && card && (
-        <TVOverlay card={card} onExit={() => setTvMode(false)} />
-      )}
 
       {/* ── Settings modal ── */}
       {showSettings && (
@@ -1318,82 +1291,6 @@ function LeitorDraftPanel({ data, onSelect, onCancel }) {
   )
 }
 
-// ── TV / Presentation overlay ──
-function TVOverlay({ card, onExit }) {
-  const meta = CATEGORY_META[card.category] || {
-    label: card.category, icon: '❓',
-    gradient: 'linear-gradient(135deg,#374151,#6B7280)',
-    color: '#6B7280', glow: 'rgba(107,114,128,0.4)',
-  }
-  const revealedClues = card.clues
-    .map((text, i) => ({ text, i, revealed: card.revealed.includes(i) }))
-    .filter(c => c.revealed)
-
-  return (
-    <div style={tv.overlay}>
-      {/* Exit button */}
-      <button onClick={onExit} style={tv.exitBtn} title="Sair (ESC)">
-        ✕ Sair
-      </button>
-
-      {/* Category header */}
-      <div style={{ ...tv.header, background: meta.gradient }}>
-        <div style={tv.headerShine}/>
-        <span style={tv.headerIcon}>{meta.icon}</span>
-        <span style={tv.headerLabel}>{meta.label.toUpperCase()}</span>
-        <div style={tv.headerBadge}>
-          {revealedClues.length} dica{revealedClues.length !== 1 ? 's' : ''} revelada{revealedClues.length !== 1 ? 's' : ''}
-        </div>
-      </div>
-
-      {/* Answer — shown if already revealed, hidden otherwise (no button) */}
-      <div style={tv.answerRow}>
-        <span style={tv.answerLabel}>RESPOSTA</span>
-        {card.answerRevealed ? (
-          <span style={{ ...tv.answerText, color: meta.color,
-            textShadow: `0 0 30px ${meta.glow}` }}>
-            {card.answer}
-          </span>
-        ) : (
-          <span style={tv.answerDots}>
-            {'● '.repeat(Math.min(Math.ceil(card.answer.length / 2), 10)).trim()}
-          </span>
-        )}
-      </div>
-
-      {/* Clues grid */}
-      <div style={tv.cluesArea}>
-        {card.clues.map((clue, i) => {
-          const revealed = card.revealed.includes(i)
-          return (
-            <div key={i} style={{
-              ...tv.clueRow,
-              background: revealed
-                ? `linear-gradient(90deg, rgba(${hexToRgbTV(meta.color)},0.1) 0%, transparent 80%)`
-                : 'rgba(255,255,255,0.02)',
-              borderLeft: revealed ? `3px solid ${meta.color}` : '3px solid transparent',
-              opacity: revealed ? 1 : 0.2,
-            }}>
-              <div style={{
-                ...tv.clueNum,
-                background: revealed ? meta.color : 'rgba(255,255,255,0.08)',
-                boxShadow: revealed ? `0 0 12px ${meta.glow}` : 'none',
-              }}>
-                {i + 1}
-              </div>
-              <span style={{
-                ...tv.clueText,
-                color: revealed ? '#F1F5F9' : '#1E3050',
-              }}>
-                {revealed ? clue : '● ● ● ●'}
-              </span>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 
 // ── Toast container ──
 function ToastContainer({ toasts }) {
@@ -1437,11 +1334,6 @@ function ToastContainer({ toasts }) {
   )
 }
 
-function hexToRgbTV(hex) {
-  const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-  if (!r) return '99,102,241'
-  return `${parseInt(r[1],16)},${parseInt(r[2],16)},${parseInt(r[3],16)}`
-}
 
 // ── Styles ──
 const s = {
@@ -1517,23 +1409,42 @@ const s = {
     transition: 'opacity 0.2s, transform 0.1s',
     fontFamily: 'inherit',
   },
-  btnDraft: {
-    display: 'flex', alignItems: 'center', gap: 6,
-    padding: '8px 14px', borderRadius: 10,
+  // Grupo de modos
+  modeGroup: {
+    display: 'flex', flexDirection: 'column', gap: 3,
+  },
+  modeGroupLabel: {
+    fontSize: 8, fontWeight: 700, color: '#1E2D4A',
+    letterSpacing: '2px', paddingLeft: 10,
+  },
+  modeGroupBtns: {
+    display: 'flex', alignItems: 'stretch',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 10, overflow: 'hidden',
+  },
+  modeBtn: {
+    display: 'flex', alignItems: 'center', gap: 5,
+    padding: '7px 12px',
     fontSize: 12, fontWeight: 700, cursor: 'pointer',
-    fontFamily: 'inherit', transition: 'all 0.2s',
-    letterSpacing: '0.5px',
+    fontFamily: 'inherit', transition: 'background 0.15s, color 0.15s',
+    border: 'none', position: 'relative',
+    letterSpacing: '0.3px',
+  },
+  modeBtnIcon: { fontSize: 13, lineHeight: 1 },
+  onDot: {
+    width: 5, height: 5, borderRadius: '50%',
+    display: 'inline-block', flexShrink: 0,
+    boxShadow: '0 0 6px currentColor',
+  },
+  topSep: {
+    width: 1, height: 28, background: 'rgba(255,255,255,0.08)',
+    flexShrink: 0, alignSelf: 'center',
   },
   btnGear: {
     background: 'rgba(255,255,255,0.06)',
     border: '1px solid rgba(255,255,255,0.08)',
     color: '#94A3B8', padding: '8px 11px',
-    borderRadius: 10, fontSize: 16, cursor: 'pointer',
-  },
-  btnTV: {
-    background: 'rgba(99,102,241,0.15)',
-    border: '1px solid rgba(99,102,241,0.3)',
-    color: '#818CF8', padding: '8px 11px',
     borderRadius: 10, fontSize: 16, cursor: 'pointer',
   },
 
@@ -1731,87 +1642,6 @@ const s = {
   },
 }
 
-// TV overlay styles (separate from s to avoid clutter)
-const tv = {
-  overlay: {
-    position: 'fixed', inset: 0, zIndex: 200,
-    background: 'linear-gradient(160deg, #06080F 0%, #0A1020 100%)',
-    display: 'flex', flexDirection: 'column',
-    fontFamily: "'Space Grotesk', sans-serif",
-    overflow: 'hidden',
-  },
-  exitBtn: {
-    position: 'absolute', top: 18, right: 22, zIndex: 10,
-    background: 'rgba(255,255,255,0.07)',
-    border: '1px solid rgba(255,255,255,0.1)',
-    color: '#64748B', padding: '8px 16px',
-    borderRadius: 10, fontSize: 13, fontWeight: 600,
-    cursor: 'pointer', fontFamily: 'inherit',
-  },
-  header: {
-    padding: '22px 36px',
-    display: 'flex', alignItems: 'center', gap: 18,
-    flexShrink: 0, position: 'relative', overflow: 'hidden',
-  },
-  headerShine: {
-    position: 'absolute', top: 0, left: '-15%',
-    width: '50%', height: '100%',
-    background: 'rgba(255,255,255,0.08)',
-    transform: 'skewX(-20deg)', pointerEvents: 'none',
-  },
-  headerIcon: { fontSize: 40, lineHeight: 1 },
-  headerLabel: {
-    fontSize: 28, fontWeight: 800, color: 'white',
-    letterSpacing: 6, flex: 1,
-    textShadow: '0 2px 12px rgba(0,0,0,0.4)',
-  },
-  headerBadge: {
-    background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(8px)',
-    border: '1px solid rgba(255,255,255,0.2)',
-    borderRadius: 99, padding: '6px 18px',
-    fontSize: 14, fontWeight: 700, color: 'white',
-  },
-  answerRow: {
-    display: 'flex', alignItems: 'center', gap: 20,
-    padding: '16px 36px',
-    background: 'rgba(0,0,0,0.4)',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
-    flexShrink: 0,
-  },
-  answerLabel: {
-    fontSize: 11, fontWeight: 700, color: '#4B6080', letterSpacing: '3px',
-  },
-  answerText: {
-    fontSize: 30, fontWeight: 800, flex: 1,
-  },
-  answerDots: {
-    fontSize: 20, color: '#1E3050', letterSpacing: '6px', flex: 1,
-  },
-  cluesArea: {
-    flex: 1, overflowY: 'auto',
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '2px',
-    padding: '8px 0',
-    alignContent: 'start',
-  },
-  clueRow: {
-    display: 'flex', alignItems: 'center', gap: 14,
-    padding: '10px 28px',
-    transition: 'all 0.2s',
-    minHeight: 44,
-  },
-  clueNum: {
-    minWidth: 30, height: 30, borderRadius: 8,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 12, fontWeight: 800, color: 'white', flexShrink: 0,
-    transition: 'all 0.2s',
-  },
-  clueText: {
-    fontSize: 15, lineHeight: 1.4, flex: 1,
-    transition: 'color 0.2s',
-  },
-}
 
 // Solo mode styles
 const solo = {
