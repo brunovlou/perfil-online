@@ -25,7 +25,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'gpt-5.4-mini',
-        max_tokens: maxTokens,
+        max_completion_tokens: maxTokens,
         response_format: { type: 'json_object' },
         messages: [{ role: 'user', content: prompt }],
       }),
