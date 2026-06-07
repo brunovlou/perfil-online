@@ -247,7 +247,15 @@ export default function Game() {
   // ── Timer effects ─────────────────────────────────────────────────────────
   const revealedLength = state.card?.revealed.length ?? 0
 
-  // Reseta e inicia o timer sempre que uma nova dica for revelada
+  // Nova carta gerada (ou carta removida): volta para 60s e fica PARADO
+  useEffect(() => {
+    setTimerActive(false)
+    setTimerSeconds(60)
+    setTimerExpired(false)
+    prevRevealedRef.current = 0
+  }, [state.card?.answer])
+
+  // Inicia o cronômetro quando uma nova dica é revelada
   useEffect(() => {
     if (!timerMode || !state.card) return
     if (revealedLength > prevRevealedRef.current) {
@@ -256,17 +264,7 @@ export default function Game() {
       setTimerExpired(false)
     }
     prevRevealedRef.current = revealedLength
-  }, [revealedLength, timerMode, state.card])
-
-  // Para o timer quando a carta some (nova rodada / encerramento)
-  useEffect(() => {
-    if (!state.card) {
-      setTimerActive(false)
-      setTimerSeconds(60)
-      setTimerExpired(false)
-      prevRevealedRef.current = 0
-    }
-  }, [state.card])
+  }, [revealedLength, timerMode, state.card?.answer])
 
   // Countdown de 1s em 1s
   useEffect(() => {
