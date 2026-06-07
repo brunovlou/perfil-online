@@ -4,6 +4,20 @@ const HISTORY_KEY           = 'perfil-card-history'
 const CATEGORY_QUEUE_KEY    = 'perfil-category-queue'
 const PESSOA_SUBTYPE_KEY    = 'perfil-pessoa-subtype-queue'
 
+const THREE_SIXTY_DAYS = 360 * 24 * 60 * 60 * 1000
+
+// Converte entrada antiga (string) para o novo formato com timestamp
+function normalizeEntry(entry) {
+  if (typeof entry === 'string') return { answer: entry, playedAt: Date.now() }
+  return entry
+}
+
+// Remove entradas com mais de 360 dias
+function filterHistory(raw) {
+  const cutoff = Date.now() - THREE_SIXTY_DAYS
+  return raw.map(normalizeEntry).filter(e => e.playedAt > cutoff)
+}
+
 // Frequências: PESSOA×4, COISA×3, LUGAR×2, ANO×1 por ciclo
 const CATEGORY_POOL = [
   'PESSOA', 'PESSOA', 'PESSOA', 'PESSOA',
@@ -29,38 +43,52 @@ const PESSOA_SUBTYPES = [
 ]
 
 // ── História persistente ────────────────────────────────────────────────────
-// Lê localStorage + Firebase (se configurado) e retorna lista mesclada
+// Lê localStorage + Firebase, mescla, filtra >360 dias e retorna array de strings
 async function getHistory() {
   let local = []
-  try { local = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') } catch {}
+  try {
+    local = filterHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'))
+  } catch {}
 
   const fbUrl = getFirebaseUrl()
-  if (!fbUrl) return local
+  if (!fbUrl) return local.map(e => e.answer)
 
   try {
     const res = await fetch(`${fbUrl}/perfil-history.json`)
-    if (!res.ok) return local
+    if (!res.ok) return local.map(e => e.answer)
     const remote = await res.json()
     if (Array.isArray(remote) && remote.length > 0) {
-      const merged = [...new Set([...local, ...remote])]
+      const remoteFiltered = filterHistory(remote)
+      // Merge: mantém a entrada mais recente para cada resposta
+      const map = new Map(local.map(e => [e.answer.toLowerCase(), e]))
+      remoteFiltered.forEach(e => {
+        const key = e.answer.toLowerCase()
+        if (!map.has(key) || map.get(key).playedAt < e.playedAt) map.set(key, e)
+      })
+      const merged = [...map.values()]
       localStorage.setItem(HISTORY_KEY, JSON.stringify(merged))
-      return merged
+      return merged.map(e => e.answer)
     }
   } catch (e) {
     console.warn('Firebase: erro ao ler histórico', e.message)
   }
-  return local
+  return local.map(e => e.answer)
 }
 
-// Salva no localStorage E no Firebase
+// Salva no localStorage E no Firebase com timestamp de hoje
 async function addToHistory(answer) {
   let local = []
-  try { local = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') } catch {}
+  try {
+    local = filterHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'))
+  } catch {}
 
-  if (!local.map(h => h.toLowerCase()).includes(answer.toLowerCase())) {
-    local.push(answer)
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(local))
-  }
+  const key   = answer.toLowerCase()
+  const entry = { answer, playedAt: Date.now() }
+  const idx   = local.findIndex(e => e.answer.toLowerCase() === key)
+  if (idx >= 0) local[idx] = entry
+  else          local.push(entry)
+
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(local))
 
   const fbUrl = getFirebaseUrl()
   if (!fbUrl) return
@@ -71,7 +99,7 @@ async function addToHistory(answer) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(local),
     })
-    console.log(`✅ Histórico salvo no Firebase (${local.length} respostas)`)
+    console.log(`✅ Histórico salvo no Firebase (${local.length} cartas ativas)`)
   } catch (e) {
     console.warn('Firebase: erro ao salvar histórico', e.message)
   }
