@@ -150,6 +150,32 @@ function buildPrompt(category, pessoaSubtype = null, history = []) {
     ? `\n⛔ RESPOSTAS PROIBIDAS — estas respostas já foram usadas e JAMAIS podem ser repetidas, independente da categoria:\n${history.map(h => `- ${h}`).join('\n')}\nSe sua resposta estiver nessa lista, descarte-a e escolha outra.\n`
     : ''
 
+  const voiceRule = category === 'ANO'
+    ? `REGRA DE VOZ NARRATIVA — ANO:
+- Escreva todas as dicas em TERCEIRA PESSOA, descrevendo eventos que aconteceram naquele ano.
+- CORRETO: "Neil Armstrong pisou na Lua.", "Pelé marcou seu milésimo gol.", "A cédula de 2 reais foi lançada."
+- ERRADO: "Neil Armstrong pisou em mim.", "Fui o ano em que Pelé..."
+`
+    : `REGRA DE VOZ NARRATIVA — ${category} (MUITO IMPORTANTE):
+- Escreva TODAS as 20 dicas em PRIMEIRA PESSOA. O perfil fala de si mesmo.
+- CORRETO (PESSOA): "Nasci em Liverpool em 1940.", "Fui criado por Walt Disney.", "Minha nave se chama Nabucodonosor."
+- CORRETO (LUGAR): "Estou localizada no litoral norte de São Paulo.", "Sou banhada pelo Oceano Atlântico.", "Tenho cerca de 33 mil habitantes."
+- CORRETO (COISA): "Sou deixada pelo 'cujus'.", "Posso ser boa ou ruim.", "Fui inventada no século XIX."
+- ERRADO: "Foi criado por...", "Está localizada em...", "É deixada pelo..."
+- Use verbos como: sou, fui, estou, fiquei, nasci, moro, tenho, possuo, posso, minha, meu, me, mim.
+`
+
+  const anoRule = category === 'ANO' ? `
+REGRA ESPECIAL PARA ANO — DIVERSIDADE OBRIGATÓRIA:
+- Inclua pelo menos 8 eventos COMPLETAMENTE DIFERENTES e sem relação entre si.
+- Cubra áreas distintas: política internacional, política brasileira, esporte, cinema/música/cultura, ciência/tecnologia, nascimentos famosos, mortes marcantes, catástrofes, curiosidades.
+- PROIBIDO ter mais de 2 dicas sobre o mesmo evento ou a mesma pessoa.
+- Inclua pelo menos 1 referência especificamente brasileira.
+- Inclua pelo menos 1 dica criativa/meta (ex: algarismo romano, distância temporal de outro evento famoso, numerologia, efemérides).
+- A resposta é um número de 4 dígitos (ex: "1963"). Esse número NUNCA deve aparecer em nenhuma das 20 dicas.
+- Use referências relativas: "Cinco anos antes, ocorreu tal evento.", "Neste ano, faltavam X anos para o homem pisar na Lua."
+` : ''
+
   return `Você é o gerador de cartas do jogo de tabuleiro Perfil, versão brasileira.
 
 Gere uma carta sobre ${hints[category]}.
@@ -158,11 +184,15 @@ NÍVEL DE DIFICULDADE: médio a difícil.
 - Escolha perfis de conhecimento geral brasileiro, mas que não sejam os primeiros que vêm à cabeça.
 - Evite os mais óbvios (ex: Pelé, Brasil, Amazônia, Jesus, Neymar, São Paulo).
 - Prefira perfis que uma pessoa culta e bem informada conheceria, mas que exijam raciocínio.
-- Dicas 1–8: muito difíceis — detalhes obscuros, curiosidades técnicas, números, fatos que POUCAS pessoas sabem. Alguém que não conhece o perfil não deve conseguir deduzi-lo só pelas primeiras dicas.
-- Dicas 9–15: dificuldade média — fatos conhecidos por quem tem interesse no assunto.
-- Dicas 16–20: mais fáceis — características marcantes que a maioria reconhece.
-- IMPORTANTE: as dicas 1–5 NÃO devem mencionar as características mais famosas do perfil. Guarde os fatos mais conhecidos para as dicas 15–20.
 
+ORDEM DAS DICAS — DO MAIS DIFÍCIL PARA O MAIS FÁCIL (OBRIGATÓRIO):
+- Dica 1 = a mais difícil e obscura do card. Detalhes que só especialistas saberiam.
+- Dicas 1–8: fatos que POUCAS pessoas conhecem — números, curiosidades técnicas, detalhes históricos obscuros. Quem não sabe a resposta NÃO deve conseguir deduzi-la pelas primeiras dicas.
+- Dicas 9–15: dificuldade média — fatos conhecidos por quem tem interesse no assunto.
+- Dicas 16–20: mais fáceis — características marcantes que a maioria reconhece. A dica 20 pode ser quase óbvia.
+⚠️ NÃO comece com as características mais famosas. Guarde os fatos mais conhecidos para as dicas 15–20.
+
+${voiceRule}
 REGRA CRÍTICA — CITE NOMES REAIS NAS DICAS:
 - SEMPRE cite nomes reais de pessoas, lugares, filmes, músicas, eventos, empresas — qualquer coisa que apareça na dica.
 - PROIBIDO usar descrições vagas como "um famoso cantor", "uma grande empresa", "um país europeu".
@@ -170,15 +200,21 @@ REGRA CRÍTICA — CITE NOMES REAIS NAS DICAS:
 - A única exceção é a própria resposta: o nome da carta JAMAIS pode ser citado.
 - CORRETO: "A Toyota lançou o Corolla no mesmo ano." | ERRADO: "Uma famosa montadora lançou um modelo icônico."
 
-REGRA CRÍTICA — DICAS DIVERSAS:
-- As 20 dicas devem cobrir ângulos completamente diferentes entre si: geográfico, biográfico, cultural, científico, esportivo, econômico, político, artístico, curioso/trivia, comparativo, cronológico, impacto social.
+REGRA CRÍTICA — DICAS DIVERSAS E VARIADAS:
+- As 20 dicas devem cobrir ângulos completamente diferentes: geográfico, biográfico, cultural, científico, esportivo, econômico, político, artístico, curioso/trivia, comparativo, cronológico, impacto social.
 - PROIBIDO ter dicas parecidas ou que repitam o mesmo tipo de informação.
+- PROIBIDO começar muitas dicas com a mesma estrutura (ex: não repita "Na [contexto]," em mais de 3 dicas).
+- Misture formatos: afirmações diretas, curiosidades, comparações, contexto histórico, fatos numéricos, referências culturais, detalhes casuais do cotidiano.
+- Inclua pelo menos 1–2 dicas com tom mais casual e direto (não enciclopédico), como faria um brasileiro descrevendo o lugar ou a pessoa de forma natural.
 
+REGRA CRÍTICA — ESPECIFICIDADE COM NÚMEROS:
+- Use dados concretos sempre que possível: distâncias em km, áreas em km², datas exatas, valores monetários, anos, quantidades.
+- CORRETO: "Estou a 135 km de São Paulo.", "Tenho 347 km² de área.", "Fui fundada em 1494."
+- ERRADO: "Fico próxima a São Paulo.", "Tenho grande extensão territorial.", "Fui fundada há séculos."
+${anoRule}
 REGRA CRÍTICA — DICAS INDEPENDENTES:
 - Cada dica deve fazer sentido SOZINHA, sem depender de nenhuma outra dica.
 - PROIBIDO usar "esta", "esse", "o mesmo", "ela também", "além disso" referenciando algo dito antes.
-- ERRADO: Dica 6 depende da Dica 5 para fazer sentido.
-- CERTO: Cada dica é autoexplicativa e pode ser lida isoladamente.
 
 REGRA MAIS IMPORTANTE — NUNCA REVELAR A RESPOSTA:
 - O texto da resposta JAMAIS pode aparecer em qualquer dica, nem parcialmente, nem em plural, nem em outro gênero.
@@ -186,13 +222,8 @@ REGRA MAIS IMPORTANTE — NUNCA REVELAR A RESPOSTA:
   → Se a resposta for "1963": nunca escreva "1963" em nenhuma das 20 dicas.
   → Se a resposta for "Ayrton Senna": nunca escreva "Senna", "Ayrton" ou "Ayrton Senna".
   → Se a resposta for "Cristo Redentor": nunca escreva "Cristo", "Redentor" ou "Cristo Redentor".
-- Isso inclui PLURAIS e variações de gênero: "jardim" → proibido também "jardins"; "suspenso" → proibido também "suspensa", "suspensos".
+- Isso inclui PLURAIS e variações de gênero.
 - Use sempre pronomes ou referências indiretas: "ele", "ela", "o monumento", "o local", "o músico", "o evento", "essa estrutura", "essa obra", etc.
-
-REGRAS ESPECIAIS PARA CATEGORIA ANO:
-- A resposta é um número de 4 dígitos (ex: "1963"). Esse número NUNCA deve aparecer em nenhuma das 20 dicas.
-- Varie bastante: eventos históricos, nascimentos (cite o nome!), mortes (cite o nome!), lançamentos culturais (cite títulos e autores!), esporte, invenções, catástrofes.
-- Use referências relativas: "Cinco anos antes, ocorreu tal evento.", "Neste ano, faltavam X anos para o homem pisar na Lua."
 
 Retorne APENAS um objeto JSON válido, sem texto adicional, sem markdown, sem \`\`\`:
 {
@@ -391,6 +422,31 @@ function buildCluesOnlyPrompt(category, answer, pessoaSubtype) {
   const subLabel = category === 'PESSOA' && pessoaSubtype ? ` (${pessoaSubtype.tipo})` : ''
   const wordsForbidden = answer.split(/\s+/).filter(w => w.length > 3).map(w => `"${w}"`).join(', ')
 
+  const voiceRule = category === 'ANO'
+    ? `REGRA DE VOZ NARRATIVA — ANO:
+- Escreva todas as dicas em TERCEIRA PESSOA, descrevendo eventos que aconteceram naquele ano.
+- CORRETO: "Neil Armstrong pisou na Lua.", "A cédula de 2 reais foi lançada no Brasil."
+- ERRADO: "Neil Armstrong pisou em mim.", "Fui o ano em que..."
+`
+    : `REGRA DE VOZ NARRATIVA — ${category} (MUITO IMPORTANTE):
+- Escreva TODAS as 20 dicas em PRIMEIRA PESSOA. O perfil fala de si mesmo.
+- CORRETO (PESSOA): "Nasci em Liverpool em 1940.", "Fui criado por Walt Disney.", "Minha nave se chama Nabucodonosor."
+- CORRETO (LUGAR): "Estou localizada no litoral norte de São Paulo.", "Sou banhada pelo Oceano Atlântico.", "Tenho cerca de 33 mil habitantes."
+- CORRETO (COISA): "Sou deixada pelo 'cujus'.", "Posso ser boa ou ruim.", "Fui inventada no século XIX."
+- ERRADO: "Foi criado por...", "Está localizada em...", "É deixada pelo..."
+- Use verbos como: sou, fui, estou, fiquei, nasci, moro, tenho, possuo, posso, minha, meu, me, mim.
+`
+
+  const anoRule = category === 'ANO' ? `
+REGRA ESPECIAL PARA ANO — DIVERSIDADE OBRIGATÓRIA:
+- Inclua pelo menos 8 eventos COMPLETAMENTE DIFERENTES e sem relação entre si.
+- Cubra áreas distintas: política internacional, política brasileira, esporte, cinema/música/cultura, ciência/tecnologia, nascimentos famosos, mortes marcantes, catástrofes, curiosidades.
+- PROIBIDO ter mais de 2 dicas sobre o mesmo evento ou a mesma pessoa.
+- Inclua pelo menos 1 referência especificamente brasileira.
+- Inclua pelo menos 1 dica criativa/meta (ex: algarismo romano, distância temporal de outro evento famoso, numerologia).
+- O número "${answer}" NUNCA deve aparecer em nenhuma das 20 dicas.
+` : ''
+
   return `Você é o gerador de cartas do jogo de tabuleiro Perfil, versão brasileira.
 
 Gere as 20 dicas para a seguinte carta:
@@ -398,26 +454,35 @@ Gere as 20 dicas para a seguinte carta:
 - RESPOSTA OBRIGATÓRIA: "${answer}" — use exatamente este tema, não escolha outro.
 
 NÍVEL DE DIFICULDADE: médio a difícil.
-- Dicas 1–8: muito difíceis — detalhes obscuros, curiosidades técnicas, números, fatos que POUCAS pessoas sabem.
+ORDEM DAS DICAS — DO MAIS DIFÍCIL PARA O MAIS FÁCIL (OBRIGATÓRIO):
+- Dica 1 = a mais difícil e obscura do card. Detalhes que só especialistas saberiam.
+- Dicas 1–8: fatos que POUCAS pessoas conhecem — números, curiosidades técnicas, detalhes históricos obscuros.
 - Dicas 9–15: dificuldade média — fatos conhecidos por quem tem interesse no assunto.
-- Dicas 16–20: mais fáceis — características marcantes que a maioria reconhece.
-- IMPORTANTE: as dicas 1–5 NÃO devem mencionar as características mais famosas do perfil.
+- Dicas 16–20: mais fáceis — características marcantes que a maioria reconhece. A dica 20 pode ser quase óbvia.
+⚠️ NÃO comece com as características mais famosas. Guarde os fatos mais conhecidos para as dicas 15–20.
 
+${voiceRule}
 REGRA CRÍTICA — CITE NOMES REAIS NAS DICAS:
 - SEMPRE cite nomes reais de pessoas, lugares, filmes, músicas, eventos, empresas.
 - PROIBIDO usar descrições vagas como "um famoso cantor", "uma grande empresa", "um país europeu".
 - A única exceção é a própria resposta: "${answer}" JAMAIS pode ser citado.
-
-REGRA CRÍTICA — DICAS DIVERSAS:
+${wordsForbidden ? `  → Palavras proibidas e suas variações: ${wordsForbidden}.\n` : ''}
+REGRA CRÍTICA — DICAS DIVERSAS E VARIADAS:
 - As 20 dicas devem cobrir ângulos completamente diferentes: geográfico, biográfico, cultural, científico, esportivo, econômico, político, artístico, curioso/trivia, comparativo, cronológico, impacto social.
+- PROIBIDO ter dicas parecidas ou que repitam o mesmo tipo de informação.
+- PROIBIDO começar muitas dicas com a mesma estrutura (ex: não repita "Na [contexto]," em mais de 3 dicas).
+- Inclua pelo menos 1–2 dicas com tom mais casual e direto (não enciclopédico).
 
+REGRA CRÍTICA — ESPECIFICIDADE COM NÚMEROS:
+- Use dados concretos sempre que possível: distâncias em km, áreas em km², datas exatas, valores monetários, anos, quantidades.
+- CORRETO: "Estou a 135 km de São Paulo." | ERRADO: "Fico próxima a São Paulo."
+${anoRule}
 REGRA CRÍTICA — DICAS INDEPENDENTES:
 - Cada dica deve fazer sentido SOZINHA, sem depender de outras.
 - PROIBIDO usar "esta", "esse", "o mesmo", "ela também", "além disso" referenciando algo dito antes.
 
 REGRA MAIS IMPORTANTE — NUNCA REVELAR A RESPOSTA:
 - "${answer}" JAMAIS pode aparecer em qualquer dica, nem parcialmente, nem em plural, nem em outro gênero.
-${wordsForbidden ? `  → Palavras proibidas e suas variações: ${wordsForbidden}.` : ''}
 - Use sempre pronomes ou referências indiretas: "ele", "ela", "o local", "o músico", "o evento", "essa obra", etc.
 
 Retorne APENAS um objeto JSON válido, sem texto adicional, sem markdown, sem \`\`\`:
@@ -593,6 +658,30 @@ function buildSoloPrompt(category, pessoaSubtype = null, history = []) {
     ? `\n⛔ RESPOSTAS PROIBIDAS — já foram usadas, não podem se repetir:\n${history.map(h => `- ${h}`).join('\n')}\n`
     : ''
 
+  const voiceRule = category === 'ANO'
+    ? `REGRA DE VOZ NARRATIVA — ANO:
+- Escreva todas as dicas em TERCEIRA PESSOA, descrevendo eventos que aconteceram naquele ano.
+- CORRETO: "Neil Armstrong pisou na Lua.", "A cédula de 2 reais foi lançada no Brasil."
+- ERRADO: "Neil Armstrong pisou em mim.", "Fui o ano em que..."
+`
+    : `REGRA DE VOZ NARRATIVA — ${category} (MUITO IMPORTANTE):
+- Escreva TODAS as 12 dicas em PRIMEIRA PESSOA. O perfil fala de si mesmo.
+- CORRETO (PESSOA): "Nasci em Liverpool em 1940.", "Fui criado por Walt Disney.", "Minha companheira chama Trinity."
+- CORRETO (LUGAR): "Estou localizada no litoral norte de São Paulo.", "Sou banhada pelo Oceano Atlântico."
+- CORRETO (COISA): "Sou deixada pelo 'cujus'.", "Posso ser boa ou ruim.", "Fui inventada no século XIX."
+- ERRADO: "Foi criado por...", "Está localizada em...", "É conhecida por..."
+- Use verbos como: sou, fui, estou, fiquei, nasci, moro, tenho, possuo, posso, minha, meu, me, mim.
+`
+
+  const anoRule = category === 'ANO' ? `
+REGRA ESPECIAL PARA ANO — DIVERSIDADE OBRIGATÓRIA:
+- Inclua pelo menos 6 eventos COMPLETAMENTE DIFERENTES e sem relação entre si.
+- Cubra áreas distintas: política, esporte, cinema/música, ciência, nascimentos, mortes, curiosidades.
+- PROIBIDO ter mais de 2 dicas sobre o mesmo evento ou a mesma pessoa.
+- Inclua pelo menos 1 referência especificamente brasileira.
+- Inclua pelo menos 1 dica criativa/meta (algarismo romano, distância temporal, efeméride).
+` : ''
+
   return `Você é o gerador de cartas do jogo de tabuleiro Perfil, versão brasileira — MODO SOLO.
 
 Gere uma carta sobre ${hints[category]}.
@@ -601,15 +690,23 @@ NÍVEL DE DIFICULDADE: médio.
 - Escolha perfis que qualquer adulto brasileiro bem informado conheceria — não muito óbvios, não muito obscuros.
 - Evite os extremos: nem "Pelé, Brasil, Jesus" (óbvios demais) nem figuras completamente desconhecidas.
 - O ideal é que um jogador atento consiga acertar entre as dicas 5–9.
-- Dicas 1–4: moderadamente difíceis — detalhes menos conhecidos, curiosidades, números.
+
+ORDEM DAS DICAS — DO MAIS DIFÍCIL PARA O MAIS FÁCIL (OBRIGATÓRIO):
+- Dica 1 = a mais difícil. Detalhe obscuro ou numérico que poucos sabem.
+- Dicas 1–4: moderadamente difíceis — curiosidades, números, detalhes menos conhecidos.
 - Dicas 5–8: médias — fatos que quem tem interesse no assunto reconhece.
 - Dicas 9–12: mais fáceis — características marcantes que a maioria dos brasileiros reconhece.
 
+${voiceRule}
 REGRA CRÍTICA — CITE NOMES REAIS NAS DICAS:
 - SEMPRE cite nomes reais de pessoas, lugares, filmes, músicas, eventos, empresas.
 - PROIBIDO usar descrições vagas como "um famoso cantor", "uma grande empresa", "um país europeu".
 - A única exceção é a própria resposta: o nome da carta JAMAIS pode ser citado.
 
+REGRA CRÍTICA — ESPECIFICIDADE COM NÚMEROS:
+- Use dados concretos: distâncias em km, datas exatas, áreas, valores, quantidades.
+- CORRETO: "Estou a 135 km de São Paulo." | ERRADO: "Fico próxima a São Paulo."
+${anoRule}
 REGRA CRÍTICA — DICAS INDEPENDENTES:
 - Cada dica deve fazer sentido SOZINHA, sem depender de outras.
 - PROIBIDO usar "esta", "esse", "o mesmo", "ela também", "além disso" referenciando dicas anteriores.
