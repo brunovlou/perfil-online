@@ -484,6 +484,19 @@ export default function Game() {
               ? <><SpinIcon/> {draftLoading ? 'Buscando…' : 'Gerando…'}</>
               : card ? '⟳  Nova Carta' : '✦  Gerar Carta'}
           </button>
+          {card && !soloMode && (
+            <button
+              onClick={() => window.open(
+                `${window.location.origin}/?leitor`,
+                'perfil-leitor',
+                'width=420,height=660,top=60,left=60'
+              )}
+              style={{ ...s.btnTV, background: 'rgba(99,102,241,0.12)', borderColor: 'rgba(99,102,241,0.25)' }}
+              title="Abrir janela do leitor — veja a resposta sem mostrar na TV"
+            >
+              👁
+            </button>
+          )}
           {card && (
             <button
               onClick={() => setTvMode(true)}
