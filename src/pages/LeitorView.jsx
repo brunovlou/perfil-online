@@ -15,7 +15,9 @@ export default function LeitorView() {
   const params      = new URLSearchParams(window.location.search)
   const urlAnswer   = params.get('a')
   const urlCategory = params.get('c')
-  const isPhone     = !!urlAnswer
+  const urlMode     = params.get('mode')
+  const isDraftPhone = urlMode === 'draft'
+  const isPhone      = !!urlAnswer || isDraftPhone
 
   const [state, setLocalState] = useState(getState)
 
@@ -24,8 +26,41 @@ export default function LeitorView() {
     return subscribe(setLocalState)
   }, [isPhone])
 
-  // Em modo celular, monta um card sintético só com a resposta
-  const card = isPhone
+  /* ── Modo celular Draft: mostra as 4 opções numeradas ── */
+  if (isDraftPhone) {
+    const category = urlCategory || 'PESSOA'
+    const options = [1, 2, 3, 4].map(n => params.get(`o${n}`)).filter(Boolean)
+    const meta = CATEGORY_META[category] || {
+      label: category, icon: '❓',
+      gradient: 'linear-gradient(135deg,#374151,#6B7280)',
+      color: '#6B7280', glow: 'rgba(107,114,128,0.3)',
+    }
+    return (
+      <div style={s.root}>
+        <div style={{ ...s.catHeader, background: meta.gradient }}>
+          <div style={s.catShine}/>
+          <span style={s.catIcon}>{meta.icon}</span>
+          <span style={s.catLabel}>{meta.label.toUpperCase()}</span>
+        </div>
+
+        <div style={s.draftOptionsList}>
+          {options.map((opt, i) => (
+            <div key={i} style={{ ...s.draftOption, borderLeft: `3px solid ${meta.color}` }}>
+              <div style={{ ...s.draftNum, background: meta.color, boxShadow: `0 0 12px ${meta.glow}` }}>
+                {i + 1}
+              </div>
+              <span style={{ ...s.draftText, color: meta.color }}>{opt}</span>
+            </div>
+          ))}
+        </div>
+
+        <p style={s.phoneTip}>Só você está vendo isso 👁</p>
+      </div>
+    )
+  }
+
+  // Em modo celular normal, monta um card sintético só com a resposta
+  const card = urlAnswer
     ? { answer: urlAnswer, category: urlCategory || 'PESSOA', clues: [], revealed: [], answerRevealed: true }
     : state.card
 
@@ -59,7 +94,7 @@ export default function LeitorView() {
   }
 
   /* ── Modo celular: só mostra a resposta ── */
-  if (isPhone) {
+  if (urlAnswer) {
     return (
       <div style={s.root}>
         <div style={{ ...s.catHeader, background: meta.gradient }}>
@@ -222,6 +257,26 @@ const s = {
   },
   answerText: {
     fontSize: 28, fontWeight: 900, lineHeight: 1.2,
+  },
+
+  // Draft phone mode — numbered options list
+  draftOptionsList: {
+    flex: 1, display: 'flex', flexDirection: 'column',
+    gap: 0, padding: '8px 0', overflowY: 'auto',
+  },
+  draftOption: {
+    display: 'flex', alignItems: 'center', gap: 16,
+    padding: '18px 20px',
+    borderBottom: '1px solid rgba(255,255,255,0.05)',
+    background: 'rgba(255,255,255,0.02)',
+  },
+  draftNum: {
+    width: 42, height: 42, borderRadius: 12,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 20, fontWeight: 900, color: 'white', flexShrink: 0,
+  },
+  draftText: {
+    fontSize: 20, fontWeight: 800, lineHeight: 1.3, flex: 1,
   },
 
   // Answer (phone mode)

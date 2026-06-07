@@ -466,6 +466,30 @@ export default function Game() {
             <span>Draft{draftMode ? ' ON' : ''}</span>
           </button>
 
+          {/* Leitor mode toggle — só funciona com Draft ON */}
+          <button
+            onClick={toggleLeitorMode}
+            title={
+              leitorMode
+                ? 'Modo Leitor ativo — clique para desativar'
+                : 'Ativar Modo Leitor (oculta as opções do Draft na TV; leitor vê pelo celular via QR Code). Requer Draft ON.'
+            }
+            style={{
+              ...s.btnDraft,
+              background: leitorMode && draftMode
+                ? 'linear-gradient(135deg, rgba(236,72,153,0.25), rgba(190,24,93,0.15))'
+                : 'rgba(255,255,255,0.05)',
+              border: leitorMode && draftMode
+                ? '1px solid rgba(236,72,153,0.5)'
+                : '1px solid rgba(255,255,255,0.08)',
+              color: leitorMode && draftMode ? '#F9A8D4' : '#4B6080',
+              opacity: leitorMode && !draftMode ? 0.5 : 1,
+            }}
+          >
+            <span style={{ fontSize: 14 }}>👁</span>
+            <span>Leitor{leitorMode ? ' ON' : ''}</span>
+          </button>
+
           {/* Timer mode toggle */}
           <button
             onClick={toggleTimerMode}
@@ -494,39 +518,6 @@ export default function Game() {
               ? <><SpinIcon/> {draftLoading ? 'Buscando…' : 'Gerando…'}</>
               : card ? '⟳  Nova Carta' : '✦  Gerar Carta'}
           </button>
-          {/* Leitor mode toggle */}
-          <button
-            onClick={toggleLeitorMode}
-            title={leitorMode ? 'Modo Leitor ativo — clique para desativar' : 'Ativar Modo Leitor (janela privada com a resposta)'}
-            style={{
-              ...s.btnDraft,
-              background: leitorMode
-                ? 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(79,70,229,0.15))'
-                : 'rgba(255,255,255,0.05)',
-              border: leitorMode
-                ? '1px solid rgba(99,102,241,0.5)'
-                : '1px solid rgba(255,255,255,0.08)',
-              color: leitorMode ? '#818CF8' : '#4B6080',
-            }}
-          >
-            <span style={{ fontSize: 14 }}>👁</span>
-            <span>Leitor{leitorMode ? ' ON' : ''}</span>
-          </button>
-
-          {/* Open reader window (only when leitor mode ON + card exists + not solo) */}
-          {leitorMode && card && !soloMode && (
-            <button
-              onClick={() => window.open(
-                `${window.location.origin}/?leitor`,
-                'perfil-leitor',
-                'width=420,height=660,top=60,left=60'
-              )}
-              style={{ ...s.btnTV, background: 'rgba(99,102,241,0.12)', borderColor: 'rgba(99,102,241,0.35)' }}
-              title="Abrir janela do leitor"
-            >
-              👁‍🗨
-            </button>
-          )}
           {card && (
             <button
               onClick={() => setTvMode(true)}
@@ -650,11 +641,19 @@ export default function Game() {
                 />
               </div>
             ) : draftPhase === 'selecting' && draftData ? (
-              <DraftPanel
-                data={draftData}
-                onSelect={handleDraftSelect}
-                onCancel={() => { setDraftPhase('idle'); setDraftData(null) }}
-              />
+              leitorMode ? (
+                <LeitorDraftPanel
+                  data={draftData}
+                  onSelect={handleDraftSelect}
+                  onCancel={() => { setDraftPhase('idle'); setDraftData(null) }}
+                />
+              ) : (
+                <DraftPanel
+                  data={draftData}
+                  onSelect={handleDraftSelect}
+                  onCancel={() => { setDraftPhase('idle'); setDraftData(null) }}
+                />
+              )
             ) : card ? (
               <Card
                 card={card}
@@ -1250,6 +1249,75 @@ function DraftPanel({ data, onSelect, onCancel }) {
   )
 }
 
+// ── Leitor Draft Panel — TV mostra categoria + números + QR (sem nomes) ──
+function LeitorDraftPanel({ data, onSelect, onCancel }) {
+  const meta = CATEGORY_META[data.category] || {
+    label: data.category, icon: '❓',
+    gradient: 'linear-gradient(135deg,#374151,#6B7280)',
+    color: '#6B7280', glow: 'rgba(107,114,128,0.4)',
+  }
+
+  // URL que o leitor escaneia no celular — contém as 4 opções com nomes
+  const origin = window.location.origin
+  const phoneUrl = (() => {
+    const params = new URLSearchParams()
+    params.set('leitor', '')
+    params.set('mode', 'draft')
+    params.set('c', data.category)
+    data.options.forEach((opt, i) => params.set(`o${i + 1}`, opt))
+    return `${origin}/?${params.toString()}`
+  })()
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&bgcolor=0D1530&color=FFFFFF&qzone=1&data=${encodeURIComponent(phoneUrl)}`
+
+  return (
+    <div style={leitor.wrap}>
+      {/* Category header */}
+      <div style={{ ...leitor.catHeader, background: meta.gradient }}>
+        <div style={leitor.catShine}/>
+        <span style={leitor.catIcon}>{meta.icon}</span>
+        <span style={leitor.catLabel}>{meta.label.toUpperCase()}</span>
+        {data.pessoaSubtype && (
+          <span style={leitor.catSub}>{data.pessoaSubtype.tipo}</span>
+        )}
+        <div style={leitor.catBadge}>👁 Modo Leitor</div>
+      </div>
+
+      {/* Body: blocks + QR side by side */}
+      <div style={leitor.body}>
+        {/* 4 numbered blocks */}
+        <div style={leitor.blocksGrid}>
+          {data.options.map((opt, i) => (
+            <button
+              key={i}
+              onClick={() => onSelect(opt)}
+              style={{ ...leitor.block, '--bc': meta.color }}
+            >
+              <div style={{ ...leitor.blockNum, background: meta.color, boxShadow: `0 0 20px ${meta.glow}` }}>
+                {i + 1}
+              </div>
+              <span style={leitor.blockHint}>Clique para escolher</span>
+            </button>
+          ))}
+        </div>
+
+        {/* QR code */}
+        <div style={leitor.qrSide}>
+          <div style={leitor.qrFrame}>
+            <img src={qrSrc} alt="QR" style={leitor.qrImg}/>
+          </div>
+          <div style={leitor.qrCaption}>
+            <span style={leitor.qrTitle}>📱 Leitor: escaneie aqui</span>
+            <span style={leitor.qrHint}>As 4 opções aparecem apenas no seu celular</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Cancel */}
+      <button onClick={onCancel} style={leitor.cancelBtn}>✕ Cancelar</button>
+    </div>
+  )
+}
+
 // ── TV / Presentation overlay ──
 function TVOverlay({ card, onExit }) {
   const meta = CATEGORY_META[card.category] || {
@@ -1827,6 +1895,105 @@ const solo = {
     cursor: 'pointer', fontFamily: 'inherit',
     boxShadow: '0 4px 16px rgba(99,102,241,0.4)',
     marginTop: 4,
+  },
+}
+
+// Leitor Draft Panel styles
+const leitor = {
+  wrap: {
+    flex: 1, display: 'flex', flexDirection: 'column',
+    borderRadius: 16, overflow: 'hidden',
+    border: '1px solid rgba(236,72,153,0.25)',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+    background: 'linear-gradient(160deg, #0A1020 0%, #0D1530 100%)',
+  },
+  catHeader: {
+    padding: '16px 20px',
+    display: 'flex', alignItems: 'center', gap: 12,
+    flexShrink: 0, position: 'relative', overflow: 'hidden',
+  },
+  catShine: {
+    position: 'absolute', top: 0, left: '-15%',
+    width: '50%', height: '100%',
+    background: 'rgba(255,255,255,0.09)',
+    transform: 'skewX(-20deg)', pointerEvents: 'none',
+  },
+  catIcon: { fontSize: 24, lineHeight: 1, position: 'relative' },
+  catLabel: {
+    fontSize: 18, fontWeight: 800, color: 'white',
+    letterSpacing: 4, flex: 1, position: 'relative',
+    textShadow: '0 2px 8px rgba(0,0,0,0.4)',
+  },
+  catSub: {
+    fontSize: 11, color: 'rgba(255,255,255,0.75)', fontWeight: 600,
+    letterSpacing: 1, position: 'relative',
+  },
+  catBadge: {
+    background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(8px)',
+    border: '1px solid rgba(236,72,153,0.4)',
+    borderRadius: 99, padding: '4px 12px',
+    fontSize: 11, fontWeight: 700, color: '#F9A8D4',
+    whiteSpace: 'nowrap', position: 'relative',
+  },
+  body: {
+    flex: 1, display: 'flex', gap: 0, overflow: 'hidden',
+  },
+  blocksGrid: {
+    flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr',
+    gap: 10, padding: 16, alignContent: 'center',
+  },
+  block: {
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', gap: 10,
+    padding: '20px 14px',
+    background: 'rgba(255,255,255,0.03)',
+    border: '2px solid rgba(255,255,255,0.08)',
+    borderRadius: 16, cursor: 'pointer',
+    transition: 'background 0.15s, border-color 0.15s, transform 0.1s',
+    fontFamily: 'inherit',
+    ':hover': { background: 'rgba(255,255,255,0.08)' },
+  },
+  blockNum: {
+    width: 56, height: 56, borderRadius: 16,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 28, fontWeight: 900, color: 'white',
+    flexShrink: 0,
+  },
+  blockHint: {
+    fontSize: 10, fontWeight: 600, color: '#334155', letterSpacing: '0.5px',
+    textAlign: 'center',
+  },
+  qrSide: {
+    width: 180, display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', gap: 14,
+    padding: '16px 16px 16px 0', flexShrink: 0,
+  },
+  qrFrame: {
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 14, padding: 10,
+  },
+  qrImg: {
+    width: 120, height: 120, borderRadius: 8, display: 'block',
+  },
+  qrCaption: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+    textAlign: 'center',
+  },
+  qrTitle: {
+    fontSize: 12, fontWeight: 700, color: '#F9A8D4',
+  },
+  qrHint: {
+    fontSize: 10, color: '#4B6080', lineHeight: 1.4, maxWidth: 140,
+  },
+  cancelBtn: {
+    margin: '10px 20px 14px',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    color: '#64748B', padding: '9px 16px',
+    borderRadius: 10, fontWeight: 600, fontSize: 12,
+    cursor: 'pointer', fontFamily: 'inherit',
+    alignSelf: 'flex-start',
   },
 }
 
