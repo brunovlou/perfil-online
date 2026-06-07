@@ -9,6 +9,7 @@ import {
   getDraftMode, setDraftMode, addDraftRejected, newMatch,
   getSoloMode, setSoloMode, endSoloRound, revealNextSoloClue,
   getTimerMode, setTimerMode,
+  getLeitorMode, setLeitorMode,
 } from '../utils/gameStore'
 import { generateCard, generateDraftOptions, generateCardFromAnswer, generateSoloCard, validateAnswer } from '../utils/generateCard'
 
@@ -96,6 +97,15 @@ export default function Game() {
     setDraftMode(next)
     setDraftPhase('idle')
     setDraftData(null)
+  }
+
+  // Modo Leitor
+  const [leitorMode, setLeitorModeLocal] = useState(() => getLeitorMode())
+
+  function toggleLeitorMode() {
+    const next = !leitorMode
+    setLeitorModeLocal(next)
+    setLeitorMode(next)
   }
 
   // Timer por dica
@@ -484,17 +494,37 @@ export default function Game() {
               ? <><SpinIcon/> {draftLoading ? 'Buscando…' : 'Gerando…'}</>
               : card ? '⟳  Nova Carta' : '✦  Gerar Carta'}
           </button>
-          {card && !soloMode && (
+          {/* Leitor mode toggle */}
+          <button
+            onClick={toggleLeitorMode}
+            title={leitorMode ? 'Modo Leitor ativo — clique para desativar' : 'Ativar Modo Leitor (janela privada com a resposta)'}
+            style={{
+              ...s.btnDraft,
+              background: leitorMode
+                ? 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(79,70,229,0.15))'
+                : 'rgba(255,255,255,0.05)',
+              border: leitorMode
+                ? '1px solid rgba(99,102,241,0.5)'
+                : '1px solid rgba(255,255,255,0.08)',
+              color: leitorMode ? '#818CF8' : '#4B6080',
+            }}
+          >
+            <span style={{ fontSize: 14 }}>👁</span>
+            <span>Leitor{leitorMode ? ' ON' : ''}</span>
+          </button>
+
+          {/* Open reader window (only when leitor mode ON + card exists + not solo) */}
+          {leitorMode && card && !soloMode && (
             <button
               onClick={() => window.open(
                 `${window.location.origin}/?leitor`,
                 'perfil-leitor',
                 'width=420,height=660,top=60,left=60'
               )}
-              style={{ ...s.btnTV, background: 'rgba(99,102,241,0.12)', borderColor: 'rgba(99,102,241,0.25)' }}
-              title="Abrir janela do leitor — veja a resposta sem mostrar na TV"
+              style={{ ...s.btnTV, background: 'rgba(99,102,241,0.12)', borderColor: 'rgba(99,102,241,0.35)' }}
+              title="Abrir janela do leitor"
             >
-              👁
+              👁‍🗨
             </button>
           )}
           {card && (

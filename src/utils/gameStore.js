@@ -198,6 +198,14 @@ export function hideAnswer() {
   setState((s) => s.card ? { ...s, card: { ...s.card, answerRevealed: false } } : s)
 }
 
+// ── Modo Leitor ────────────────────────────────────────────────────────────
+export function getLeitorMode() {
+  return localStorage.getItem('perfil-leitor-mode') === 'true'
+}
+export function setLeitorMode(val) {
+  localStorage.setItem('perfil-leitor-mode', val ? 'true' : 'false')
+}
+
 // ── Timer por dica ─────────────────────────────────────────────────────────
 export function getTimerMode() {
   return localStorage.getItem('perfil-timer-mode') === 'true'
