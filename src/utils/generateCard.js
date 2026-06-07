@@ -255,6 +255,18 @@ Retorne APENAS um objeto JSON:
 {"clue": "texto da dica corrigida"}`
 }
 
+// Substitui uma dica aleatória por "Perca sua vez." (nunca a 1ª nem a última)
+function insertPerdaSuaVez(clues) {
+  const total = clues.length
+  // Faixa: entre 15% e 80% do total (ex: nas 20 dicas → índices 3–16; nas 12 → índices 1–9)
+  const min = Math.max(1, Math.floor(total * 0.15))
+  const max = Math.min(total - 2, Math.floor(total * 0.80))
+  const idx = min + Math.floor(Math.random() * (max - min + 1))
+  const result = [...clues]
+  result[idx] = 'Perca sua vez.'
+  return result
+}
+
 // Termos proibidos derivados da resposta — inclui radicais para pegar plurais e variações
 function forbiddenTerms(answer) {
   const terms = new Set()
@@ -552,7 +564,7 @@ export async function generateCardFromAnswer(answer, category, pessoaSubtype) {
       setCard({
         category,
         answer,
-        clues: parsed.clues,
+        clues: insertPerdaSuaVez(parsed.clues),
         revealed: [],
         answerRevealed: false,
       })
@@ -773,7 +785,7 @@ export async function generateSoloCard() {
       setCard({
         category,
         answer:         parsed.answer,
-        clues:          parsed.clues,
+        clues:          insertPerdaSuaVez(parsed.clues),
         revealed:       [],
         answerRevealed: false,
       })
@@ -839,7 +851,7 @@ export async function generateCard() {
       setCard({
         category: parsed.category,
         answer: parsed.answer,
-        clues: parsed.clues,
+        clues: insertPerdaSuaVez(parsed.clues),
         revealed: [],
         answerRevealed: false,
       })

@@ -156,6 +156,68 @@ export default function Card({ card, onToggleClue, onRevealAnswer, onHideAnswer,
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
         {card.clues.map((clue, i) => {
           const revealed = card.revealed.includes(i)
+          const isAction = clue === 'Perca sua vez.'
+
+          if (isAction) {
+            return (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                padding: '6px 14px',
+                borderBottom: '1px solid rgba(255,255,255,0.03)',
+                minHeight: '36px',
+                background: revealed
+                  ? 'linear-gradient(90deg, rgba(239,68,68,0.12) 0%, transparent 100%)'
+                  : 'transparent',
+                borderLeft: revealed ? '2.5px solid #EF4444' : '2.5px solid transparent',
+                transition: 'all 0.2s ease',
+              }}>
+                {/* Number badge — vermelho para ação */}
+                <div style={{
+                  minWidth: '24px', height: '24px',
+                  borderRadius: '6px',
+                  background: revealed ? '#EF4444' : 'rgba(255,255,255,0.06)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '10px', fontWeight: 800, color: 'white',
+                  flexShrink: 0,
+                  transition: 'background 0.2s',
+                  boxShadow: revealed ? '0 0 8px rgba(239,68,68,0.4)' : 'none',
+                }}>
+                  {i + 1}
+                </div>
+
+                {/* Texto da ação */}
+                <span style={{
+                  fontSize: '12.5px', flex: 1, lineHeight: 1.4, fontWeight: 700,
+                  color: revealed ? '#FCA5A5' : '#1E3050',
+                  letterSpacing: revealed ? 'normal' : '3px',
+                  transition: 'color 0.2s, letter-spacing 0.2s',
+                }}>
+                  {revealed ? '⚠️ Perca sua vez.' : '● ● ● ● ● ● ● ●'}
+                </span>
+
+                {/* Botão toggle — igual ao normal, mas sem mostrar no solo */}
+                {!soloMode && (
+                  <button
+                    onClick={() => onToggleClue(i)}
+                    style={{
+                      width: '30px', height: '30px',
+                      borderRadius: '8px',
+                      background: revealed ? '#EF4444' : 'rgba(255,255,255,0.06)',
+                      border: revealed ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                      fontSize: '14px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0, cursor: 'pointer', transition: 'all 0.15s',
+                      boxShadow: revealed ? '0 0 10px rgba(239,68,68,0.4)' : 'none',
+                    }}
+                    title={revealed ? 'Ocultar' : 'Revelar'}
+                  >
+                    {revealed ? '👁' : '🔒'}
+                  </button>
+                )}
+              </div>
+            )
+          }
+
           return (
             <div key={i} style={{
               display: 'flex', alignItems: 'center', gap: '10px',
