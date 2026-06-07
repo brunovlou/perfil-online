@@ -2,10 +2,13 @@ import { useState, useEffect } from 'react'
 import { getState, subscribe } from '../utils/gameStore'
 
 const CATEGORY_META = {
-  PESSOA: { label: 'Pessoa', icon: '👤', gradient: 'linear-gradient(135deg,#4338CA,#6366F1,#818CF8)', color: '#6366F1', glow: 'rgba(99,102,241,0.4)' },
-  COISA:  { label: 'Coisa',  icon: '📦', gradient: 'linear-gradient(135deg,#C2410C,#F97316,#FB923C)', color: '#F97316', glow: 'rgba(249,115,22,0.4)'  },
-  LUGAR:  { label: 'Lugar',  icon: '🌍', gradient: 'linear-gradient(135deg,#065F46,#10B981,#34D399)', color: '#10B981', glow: 'rgba(16,185,129,0.4)'  },
-  ANO:    { label: 'Ano',    icon: '📅', gradient: 'linear-gradient(135deg,#6D28D9,#A855F7,#C084FC)', color: '#A855F7', glow: 'rgba(168,85,247,0.4)'  },
+  PESSOA:   { label: 'Pessoa',       icon: '👤', gradient: 'linear-gradient(135deg,#4338CA,#6366F1,#818CF8)', color: '#6366F1', glow: 'rgba(99,102,241,0.4)'  },
+  COISA:    { label: 'Coisa',        icon: '📦', gradient: 'linear-gradient(135deg,#C2410C,#F97316,#FB923C)', color: '#F97316', glow: 'rgba(249,115,22,0.4)'  },
+  LUGAR:    { label: 'Lugar',        icon: '🌍', gradient: 'linear-gradient(135deg,#065F46,#10B981,#34D399)', color: '#10B981', glow: 'rgba(16,185,129,0.4)'  },
+  ANO:      { label: 'Ano',          icon: '📅', gradient: 'linear-gradient(135deg,#6D28D9,#A855F7,#C084FC)', color: '#A855F7', glow: 'rgba(168,85,247,0.4)'  },
+  CONCEITO: { label: 'Conceito',     icon: '🧠', gradient: 'linear-gradient(135deg,#0E7490,#06B6D4,#67E8F9)', color: '#06B6D4', glow: 'rgba(6,182,212,0.4)'   },
+  MÚSICA:   { label: 'Música',       icon: '🎵', gradient: 'linear-gradient(135deg,#9D174D,#EC4899,#F9A8D4)', color: '#EC4899', glow: 'rgba(236,72,153,0.4)'  },
+  SÉRIE:    { label: 'Série/Filme',  icon: '🎬', gradient: 'linear-gradient(135deg,#881337,#E11D48,#FB7185)', color: '#E11D48', glow: 'rgba(225,29,72,0.4)'   },
 }
 
 // Modo celular: resposta vem direto da URL (?a=ANSWER&c=CATEGORY)

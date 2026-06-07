@@ -18,11 +18,15 @@ function filterHistory(raw) {
   return raw.map(normalizeEntry).filter(e => e.playedAt > cutoff)
 }
 
-// Frequências: PESSOA×4, COISA×3, LUGAR×2, ANO×1 por ciclo
+// Frequências por ciclo de 16 cartas:
+// PESSOA×3, LUGAR×3, CONCEITO×3, COISA×2, MÚSICA×2, SÉRIE×2, ANO×1
 const CATEGORY_POOL = [
-  'PESSOA', 'PESSOA', 'PESSOA', 'PESSOA',
-  'COISA', 'COISA', 'COISA',
-  'LUGAR', 'LUGAR',
+  'PESSOA', 'PESSOA', 'PESSOA',
+  'LUGAR',  'LUGAR',  'LUGAR',
+  'CONCEITO', 'CONCEITO', 'CONCEITO',
+  'COISA', 'COISA',
+  'MÚSICA', 'MÚSICA',
+  'SÉRIE', 'SÉRIE',
   'ANO',
 ]
 
@@ -140,10 +144,13 @@ function buildPrompt(category, pessoaSubtype = null, history = []) {
     : 'uma pessoa ou personagem famoso'
 
   const hints = {
-    PESSOA: pessoaHint,
-    COISA:  'uma coisa (objeto, invenção, alimento, animal, conceito, fenômeno, estilo musical, obra de arte)',
-    LUGAR:  'um lugar (cidade, país, monumento, acidente geográfico, ponto turístico, bairro famoso)',
-    ANO:    'um ano histórico importante (a resposta é o ano em si, ex: "1969")',
+    PESSOA:   pessoaHint,
+    COISA:    'uma coisa (objeto, invenção, alimento, animal, fenômeno natural, obra de arte, estilo musical)',
+    LUGAR:    'um lugar (cidade, país, monumento, acidente geográfico, ponto turístico, bairro famoso)',
+    ANO:      'um ano histórico importante (a resposta é o ano em si, ex: "1969")',
+    CONCEITO: 'um conceito ou ideia abstrata (ex: inflação, procrastinação, buraco negro, efeito estufa, déjà vu, gentrificação, karma, síndrome do impostor, algoritmo, placebo)',
+    MÚSICA:   'uma música específica — a resposta é o TÍTULO DA MÚSICA (ex: "Bohemian Rhapsody", "Asa Branca", "Thriller", "Evidências", "Garota de Ipanema")',
+    SÉRIE:    'uma série de TV ou filme — a resposta é o TÍTULO (ex: "Breaking Bad", "Titanic", "Tropa de Elite", "A Grande Família", "Cidade de Deus")',
   }
 
   const historyBlock = history.length > 0
@@ -156,6 +163,27 @@ function buildPrompt(category, pessoaSubtype = null, history = []) {
 - CORRETO: "Neil Armstrong pisou na Lua.", "Pelé marcou seu milésimo gol.", "A cédula de 2 reais foi lançada."
 - ERRADO: "Neil Armstrong pisou em mim.", "Fui o ano em que Pelé..."
 `
+  : category === 'CONCEITO'
+    ? `REGRA DE VOZ NARRATIVA — CONCEITO (MUITO IMPORTANTE):
+- Escreva TODAS as 20 dicas em PRIMEIRA PESSOA. O conceito fala de si mesmo.
+- CORRETO: "Meu nome vem do latim 'procrastinare'.", "Fui descrito por Sigmund Freud em 1926.", "Manifesto-me quando alguém adia tarefas urgentes.", "Meu oposto é a disciplina."
+- ERRADO: "Este conceito foi descrito por...", "Ele se manifesta quando...", "É o oposto de..."
+- Use verbos como: sou, fui, estou, manifesto-me, aplico-me, denomino-me, meu, minha, me, pertenço, caracterizo.
+`
+  : category === 'MÚSICA'
+    ? `REGRA DE VOZ NARRATIVA — MÚSICA (MUITO IMPORTANTE):
+- Escreva TODAS as 20 dicas em PRIMEIRA PESSOA. A música fala de si mesma.
+- CORRETO: "Fui gravada no Rockfield Studio, no País de Gales, em agosto de 1975.", "Integro o álbum 'A Night at the Opera'.", "Minha letra foi escrita por Freddie Mercury.", "Alcancei o número 1 nas paradas britânicas em duas décadas diferentes."
+- ERRADO: "Esta música foi gravada em...", "Ela integra o álbum...", "A letra foi escrita por..."
+- Use verbos como: fui, integro, minha, meu, estreei, alcancei, pertenço, fui gravada, fui composta, fui lançada.
+`
+  : category === 'SÉRIE'
+    ? `REGRA DE VOZ NARRATIVA — SÉRIE/FILME (MUITO IMPORTANTE):
+- Escreva TODAS as 20 dicas em PRIMEIRA PESSOA. A série ou filme fala de si mesmo(a).
+- CORRETO: "Estreei no canal AMC em janeiro de 2008.", "Fui criada por Vince Gilligan.", "Meu protagonista é interpretado por Bryan Cranston.", "Ganhei o Emmy de Melhor Série Dramática por 4 anos consecutivos."
+- ERRADO: "Esta série estreou em...", "Ela foi criada por...", "O protagonista é interpretado por..."
+- Use verbos como: estreei, fui, tenho, meu, minha, fui produzida, fui lançada, ganhei, conquistei, fui filmada.
+`
     : `REGRA DE VOZ NARRATIVA — ${category} (MUITO IMPORTANTE):
 - Escreva TODAS as 20 dicas em PRIMEIRA PESSOA. O perfil fala de si mesmo.
 - CORRETO (PESSOA): "Nasci em Liverpool em 1940.", "Fui criado por Walt Disney.", "Minha nave se chama Nabucodonosor."
@@ -164,6 +192,35 @@ function buildPrompt(category, pessoaSubtype = null, history = []) {
 - ERRADO: "Foi criado por...", "Está localizada em...", "É deixada pelo..."
 - Use verbos como: sou, fui, estou, fiquei, nasci, moro, tenho, possuo, posso, minha, meu, me, mim.
 `
+
+  const conceitoRule = category === 'CONCEITO' ? `
+REGRAS ESPECIAIS PARA CONCEITO:
+- Dicas 1–8 (difíceis): etimologia (latim/grego), primeiro registro histórico do termo, pesquisadores que o cunharam com datas, estatísticas específicas (ex: "7 em cada 10 trabalhadores relatam sofrer comigo"), área acadêmica de origem.
+- Dicas 9–15 (médias): áreas de aplicação, conceitos opostos ou relacionados (citar pelo nome), estudos científicos reais com dados.
+- Dicas 16–20 (fáceis): exemplos do cotidiano brasileiro, analogias simples, comparações com situações que todo mundo já viveu.
+- OBRIGATÓRIO: pelo menos 1 dica bem-humorada ou com ironia nas últimas 5 dicas (ex: "Sou o motivo pelo qual você ainda não fez o que tinha que fazer hoje.").
+- OBRIGATÓRIO: cite pesquisadores ou autores reais pelo nome (ex: "Daniel Kahneman", "Sigmund Freud", "Piers Steel").
+` : ''
+
+  const músicaRule = category === 'MÚSICA' ? `
+REGRAS ESPECIAIS PARA MÚSICA:
+- Dicas 1–8 (difíceis): estúdio de gravação com cidade, data exata de gravação, produtor, músicos que tocaram instrumentos específicos (baterista, baixista convidado), versão original vs. editada, posição em paradas de países específicos, número de takes necessários.
+- Dicas 9–15 (médias): álbum que integra, ano de lançamento do álbum, covers famosos feitos por outros artistas, uso em filmes/propagandas/trilhas sonoras, premiações com categoria específica.
+- Dicas 16–20 (fáceis): nome do artista/banda, gênero musical, paráfrase da letra ou tema central (NUNCA copie a letra palavra por palavra), impacto cultural, número de streams ou vendas.
+- PROIBIDO citar o título da música em qualquer dica. O artista/banda PODE e DEVE ser citado nas dicas 14–20.
+- OBRIGATÓRIO: cite o álbum, o estúdio de gravação e pelo menos 2 pessoas reais (produtor, co-autor, músico de apoio).
+- OBRIGATÓRIO: pelo menos 1 dica sobre o contexto de criação da música (o que inspirou o compositor).
+` : ''
+
+  const sérieRule = category === 'SÉRIE' ? `
+REGRAS ESPECIAIS PARA SÉRIE/FILME:
+- Dicas 1–8 (difíceis): orçamento de produção, datas e locações de filmagem, showrunner ou diretor de episódios específicos (não o principal), produtora, roteiristas de episódios icônicos, número exato de episódios/temporadas, audiência do episódio piloto.
+- Dicas 9–15 (médias): atores de papéis secundários pelo nome, premiações com número de troféus e categorias, plataforma de streaming ou canal, episódio mais assistido com dado, trilha sonora (compositor).
+- Dicas 16–20 (fáceis): ator/atriz principal pelo nome, premissa sem spoilers, gênero, frases icônicas parafraseadas, impacto cultural, países onde foi sucesso.
+- PROIBIDO citar o título. Nomes de personagens principais PODEM ser citados a partir das dicas 10–20.
+- OBRIGATÓRIO: citar ao menos 3 atores ou pessoas reais da produção pelo nome completo.
+- OBRIGATÓRIO: pelo menos 1 dica sobre o impacto cultural ou social da obra.
+` : ''
 
   const anoRule = category === 'ANO' ? `
 REGRA ESPECIAL PARA ANO — DIVERSIDADE OBRIGATÓRIA:
@@ -193,6 +250,7 @@ ORDEM DAS DICAS — DO MAIS DIFÍCIL PARA O MAIS FÁCIL (OBRIGATÓRIO):
 ⚠️ NÃO comece com as características mais famosas. Guarde os fatos mais conhecidos para as dicas 15–20.
 
 ${voiceRule}
+${conceitoRule}${músicaRule}${sérieRule}
 REGRA CRÍTICA — CITE NOMES REAIS NAS DICAS:
 - SEMPRE cite nomes reais de pessoas, lugares, filmes, músicas, eventos, empresas — qualquer coisa que apareça na dica.
 - PROIBIDO usar descrições vagas como "um famoso cantor", "uma grande empresa", "um país europeu".
@@ -400,12 +458,15 @@ async function fixSingleClue(answer, category, clueIndex, badClue) {
 // Prompt rápido: pede apenas 4 nomes, sem gerar dicas
 function buildOptionsPrompt(category, pessoaSubtype, history, rejected) {
   const hints = {
-    PESSOA: pessoaSubtype
+    PESSOA:   pessoaSubtype
       ? `exclusivamente um(a) **${pessoaSubtype.tipo}**. Exemplos: ${pessoaSubtype.ex}. ⚠️ NÃO escolha escritores, poetas ou literatos.`
       : 'uma pessoa ou personagem famoso',
-    COISA:  'uma coisa (objeto, invenção, alimento, animal, conceito, fenômeno, estilo musical, obra de arte)',
-    LUGAR:  'um lugar (cidade, país, monumento, acidente geográfico, ponto turístico, bairro famoso)',
-    ANO:    'um ano histórico importante (a resposta é o ano em si, ex: "1969")',
+    COISA:    'uma coisa (objeto, invenção, alimento, animal, fenômeno natural, obra de arte, estilo musical)',
+    LUGAR:    'um lugar (cidade, país, monumento, acidente geográfico, ponto turístico, bairro famoso)',
+    ANO:      'um ano histórico importante (a resposta é o ano em si, ex: "1969")',
+    CONCEITO: 'um conceito ou ideia abstrata (ex: inflação, procrastinação, buraco negro, efeito estufa, déjà vu, gentrificação, karma, síndrome do impostor, algoritmo, placebo)',
+    MÚSICA:   'uma música específica — retorne o TÍTULO DA MÚSICA (ex: "Bohemian Rhapsody", "Asa Branca", "Thriller", "Evidências", "Garota de Ipanema"). Misture músicas brasileiras e internacionais.',
+    SÉRIE:    'uma série de TV ou filme — retorne o TÍTULO (ex: "Breaking Bad", "Titanic", "Tropa de Elite", "A Grande Família", "Cidade de Deus"). Misture produções nacionais e internacionais.',
   }
 
   const historyBlock = history.length > 0
@@ -430,7 +491,7 @@ Regras:
 
 // Prompt completo mas com resposta já definida — gera as 20 dicas para um tema escolhido
 function buildCluesOnlyPrompt(category, answer, pessoaSubtype) {
-  const catLabel = { PESSOA: 'Pessoa', COISA: 'Coisa', LUGAR: 'Lugar', ANO: 'Ano' }[category] || category
+  const catLabel = { PESSOA: 'Pessoa', COISA: 'Coisa', LUGAR: 'Lugar', ANO: 'Ano', CONCEITO: 'Conceito', MÚSICA: 'Música', SÉRIE: 'Série/Filme' }[category] || category
   const subLabel = category === 'PESSOA' && pessoaSubtype ? ` (${pessoaSubtype.tipo})` : ''
   const wordsForbidden = answer.split(/\s+/).filter(w => w.length > 3).map(w => `"${w}"`).join(', ')
 
@@ -440,6 +501,27 @@ function buildCluesOnlyPrompt(category, answer, pessoaSubtype) {
 - CORRETO: "Neil Armstrong pisou na Lua.", "A cédula de 2 reais foi lançada no Brasil."
 - ERRADO: "Neil Armstrong pisou em mim.", "Fui o ano em que..."
 `
+  : category === 'CONCEITO'
+    ? `REGRA DE VOZ NARRATIVA — CONCEITO (MUITO IMPORTANTE):
+- Escreva TODAS as 20 dicas em PRIMEIRA PESSOA. O conceito fala de si mesmo.
+- CORRETO: "Meu nome vem do latim.", "Fui descrito por Sigmund Freud em 1926.", "Manifesto-me quando alguém adia tarefas urgentes.", "Meu oposto é a disciplina."
+- ERRADO: "Este conceito foi descrito por...", "Ele se manifesta quando..."
+- Use verbos como: sou, fui, estou, manifesto-me, aplico-me, meu, minha, me, pertenço, caracterizo.
+`
+  : category === 'MÚSICA'
+    ? `REGRA DE VOZ NARRATIVA — MÚSICA (MUITO IMPORTANTE):
+- Escreva TODAS as 20 dicas em PRIMEIRA PESSOA. A música fala de si mesma.
+- CORRETO: "Fui gravada em agosto de 1975.", "Integro o álbum 'A Night at the Opera'.", "Minha letra foi escrita por Freddie Mercury."
+- ERRADO: "Esta música foi gravada em...", "Ela integra o álbum..."
+- Use verbos como: fui, integro, minha, meu, estreei, alcancei, pertenço, fui gravada, fui composta, fui lançada.
+`
+  : category === 'SÉRIE'
+    ? `REGRA DE VOZ NARRATIVA — SÉRIE/FILME (MUITO IMPORTANTE):
+- Escreva TODAS as 20 dicas em PRIMEIRA PESSOA. A série ou filme fala de si mesmo(a).
+- CORRETO: "Estreei no canal AMC em janeiro de 2008.", "Fui criada por Vince Gilligan.", "Meu protagonista é interpretado por Bryan Cranston."
+- ERRADO: "Esta série estreou em...", "Ela foi criada por..."
+- Use verbos como: estreei, fui, tenho, meu, minha, fui produzida, fui lançada, ganhei, conquistei.
+`
     : `REGRA DE VOZ NARRATIVA — ${category} (MUITO IMPORTANTE):
 - Escreva TODAS as 20 dicas em PRIMEIRA PESSOA. O perfil fala de si mesmo.
 - CORRETO (PESSOA): "Nasci em Liverpool em 1940.", "Fui criado por Walt Disney.", "Minha nave se chama Nabucodonosor."
@@ -448,6 +530,29 @@ function buildCluesOnlyPrompt(category, answer, pessoaSubtype) {
 - ERRADO: "Foi criado por...", "Está localizada em...", "É deixada pelo..."
 - Use verbos como: sou, fui, estou, fiquei, nasci, moro, tenho, possuo, posso, minha, meu, me, mim.
 `
+
+  const extraRule = category === 'CONCEITO' ? `
+REGRAS ESPECIAIS PARA CONCEITO:
+- Dicas 1–8 (difíceis): etimologia (latim/grego), primeiro registro histórico, pesquisadores que cunharam o termo com datas reais, estatísticas específicas, área acadêmica de origem.
+- Dicas 9–15 (médias): áreas de aplicação, conceitos opostos ou relacionados (citar pelo nome), estudos científicos com dados reais.
+- Dicas 16–20 (fáceis): exemplos do cotidiano, analogias simples, situações que todo mundo já viveu.
+- OBRIGATÓRIO: pelo menos 1 dica bem-humorada ou com ironia nas últimas 5 dicas.
+- OBRIGATÓRIO: cite pesquisadores reais pelo nome (ex: "Daniel Kahneman", "Sigmund Freud").
+` : category === 'MÚSICA' ? `
+REGRAS ESPECIAIS PARA MÚSICA:
+- Dicas 1–8 (difíceis): estúdio de gravação com cidade, data exata, produtor, músicos que tocaram instrumentos específicos, versão original vs. editada, posição em paradas de países específicos.
+- Dicas 9–15 (médias): álbum que integra, covers famosos, uso em filmes/propagandas/trilhas sonoras, premiações.
+- Dicas 16–20 (fáceis): nome do artista/banda, gênero, paráfrase do tema da letra, impacto cultural.
+- PROIBIDO citar o título. O artista/banda DEVE ser citado nas dicas 14–20.
+- OBRIGATÓRIO: cite o álbum, o estúdio e pelo menos 2 pessoas reais (produtor, co-autor, músico de apoio).
+` : category === 'SÉRIE' ? `
+REGRAS ESPECIAIS PARA SÉRIE/FILME:
+- Dicas 1–8 (difíceis): orçamento, datas e locações de filmagem, showrunner/diretor, produtora, número de episódios/temporadas, audiência do piloto.
+- Dicas 9–15 (médias): atores de papéis secundários, premiações com categorias, plataforma/canal, compositor da trilha.
+- Dicas 16–20 (fáceis): ator/atriz principal, premissa sem spoilers, gênero, frase icônica parafraseada, impacto cultural.
+- PROIBIDO citar o título. Nomes de personagens PODEM aparecer a partir das dicas 10–20.
+- OBRIGATÓRIO: citar ao menos 3 pessoas reais da produção pelo nome completo.
+` : ''
 
   const anoRule = category === 'ANO' ? `
 REGRA ESPECIAL PARA ANO — DIVERSIDADE OBRIGATÓRIA:
@@ -474,6 +579,7 @@ ORDEM DAS DICAS — DO MAIS DIFÍCIL PARA O MAIS FÁCIL (OBRIGATÓRIO):
 ⚠️ NÃO comece com as características mais famosas. Guarde os fatos mais conhecidos para as dicas 15–20.
 
 ${voiceRule}
+${extraRule}
 REGRA CRÍTICA — CITE NOMES REAIS NAS DICAS:
 - SEMPRE cite nomes reais de pessoas, lugares, filmes, músicas, eventos, empresas.
 - PROIBIDO usar descrições vagas como "um famoso cantor", "uma grande empresa", "um país europeu".
@@ -660,10 +766,13 @@ function buildSoloPrompt(category, pessoaSubtype = null, history = []) {
     : 'uma pessoa ou personagem famoso'
 
   const hints = {
-    PESSOA: pessoaHint,
-    COISA:  'uma coisa (objeto, invenção, alimento, animal, conceito, fenômeno, estilo musical, obra de arte)',
-    LUGAR:  'um lugar (cidade, país, monumento, acidente geográfico, ponto turístico, bairro famoso)',
-    ANO:    'um ano histórico importante (a resposta é o ano em si, ex: "1969")',
+    PESSOA:   pessoaHint,
+    COISA:    'uma coisa (objeto, invenção, alimento, animal, fenômeno natural, obra de arte, estilo musical)',
+    LUGAR:    'um lugar (cidade, país, monumento, acidente geográfico, ponto turístico, bairro famoso)',
+    ANO:      'um ano histórico importante (a resposta é o ano em si, ex: "1969")',
+    CONCEITO: 'um conceito ou ideia abstrata (ex: inflação, procrastinação, buraco negro, déjà vu, karma, síndrome do impostor, algoritmo, placebo)',
+    MÚSICA:   'uma música específica — a resposta é o TÍTULO DA MÚSICA (ex: "Bohemian Rhapsody", "Asa Branca", "Thriller", "Evidências")',
+    SÉRIE:    'uma série de TV ou filme — a resposta é o TÍTULO (ex: "Breaking Bad", "Titanic", "Tropa de Elite", "A Grande Família")',
   }
 
   const historyBlock = history.length > 0
@@ -675,6 +784,27 @@ function buildSoloPrompt(category, pessoaSubtype = null, history = []) {
 - Escreva todas as dicas em TERCEIRA PESSOA, descrevendo eventos que aconteceram naquele ano.
 - CORRETO: "Neil Armstrong pisou na Lua.", "A cédula de 2 reais foi lançada no Brasil."
 - ERRADO: "Neil Armstrong pisou em mim.", "Fui o ano em que..."
+`
+  : category === 'CONCEITO'
+    ? `REGRA DE VOZ NARRATIVA — CONCEITO (MUITO IMPORTANTE):
+- Escreva TODAS as 12 dicas em PRIMEIRA PESSOA. O conceito fala de si mesmo.
+- CORRETO: "Meu nome vem do latim.", "Fui descrito por Freud.", "Manifesto-me quando alguém adia tarefas."
+- ERRADO: "Este conceito foi descrito por...", "Ele se manifesta quando..."
+- Use verbos como: sou, fui, manifesto-me, aplico-me, meu, minha, me, caracterizo.
+`
+  : category === 'MÚSICA'
+    ? `REGRA DE VOZ NARRATIVA — MÚSICA (MUITO IMPORTANTE):
+- Escreva TODAS as 12 dicas em PRIMEIRA PESSOA. A música fala de si mesma.
+- CORRETO: "Fui gravada em 1975.", "Integro o álbum 'A Night at the Opera'.", "Minha letra foi escrita por Freddie Mercury."
+- ERRADO: "Esta música foi gravada em...", "Ela integra o álbum..."
+- Use verbos como: fui, integro, minha, meu, alcancei, pertenço, fui gravada, fui composta.
+`
+  : category === 'SÉRIE'
+    ? `REGRA DE VOZ NARRATIVA — SÉRIE/FILME (MUITO IMPORTANTE):
+- Escreva TODAS as 12 dicas em PRIMEIRA PESSOA. A série ou filme fala de si mesmo(a).
+- CORRETO: "Estreei no canal AMC em 2008.", "Fui criada por Vince Gilligan.", "Meu protagonista é interpretado por Bryan Cranston."
+- ERRADO: "Esta série estreou em...", "Ela foi criada por..."
+- Use verbos como: estreei, fui, tenho, meu, minha, fui produzida, ganhei.
 `
     : `REGRA DE VOZ NARRATIVA — ${category} (MUITO IMPORTANTE):
 - Escreva TODAS as 12 dicas em PRIMEIRA PESSOA. O perfil fala de si mesmo.
