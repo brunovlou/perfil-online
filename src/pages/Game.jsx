@@ -423,9 +423,7 @@ export default function Game() {
         <div style={s.topRight}>
 
           {/* ── Grupo: Modos ── */}
-          <div style={s.modeGroup}>
-            <span style={s.modeGroupLabel}>MODOS</span>
-            <div style={s.modeGroupBtns}>
+          <div style={s.modeGroupBtns}>
 
               <button
                 onClick={toggleSoloMode}
@@ -487,7 +485,6 @@ export default function Game() {
                 {timerMode && <span style={{ ...s.onDot, background: '#FCD34D' }}/>}
               </button>
 
-            </div>
           </div>
 
           {/* ── Separador ── */}
@@ -1410,13 +1407,6 @@ const s = {
     fontFamily: 'inherit',
   },
   // Grupo de modos
-  modeGroup: {
-    display: 'flex', flexDirection: 'column', gap: 3,
-  },
-  modeGroupLabel: {
-    fontSize: 8, fontWeight: 700, color: '#1E2D4A',
-    letterSpacing: '2px', paddingLeft: 10,
-  },
   modeGroupBtns: {
     display: 'flex', alignItems: 'stretch',
     background: 'rgba(255,255,255,0.04)',
