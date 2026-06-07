@@ -198,6 +198,14 @@ export function hideAnswer() {
   setState((s) => s.card ? { ...s, card: { ...s.card, answerRevealed: false } } : s)
 }
 
+// ── Timer por dica ─────────────────────────────────────────────────────────
+export function getTimerMode() {
+  return localStorage.getItem('perfil-timer-mode') === 'true'
+}
+export function setTimerMode(val) {
+  localStorage.setItem('perfil-timer-mode', val ? 'true' : 'false')
+}
+
 // ── Modo Solo ──────────────────────────────────────────────────────────────
 export function getSoloMode() {
   return localStorage.getItem('perfil-solo-mode') === 'true'

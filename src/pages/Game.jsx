@@ -8,6 +8,7 @@ import {
   getApiKey, setApiKey, getFirebaseUrl, setFirebaseUrl,
   getDraftMode, setDraftMode, addDraftRejected, newMatch,
   getSoloMode, setSoloMode, endSoloRound, revealNextSoloClue,
+  getTimerMode, setTimerMode,
 } from '../utils/gameStore'
 import { generateCard, generateDraftOptions, generateCardFromAnswer, generateSoloCard, validateAnswer } from '../utils/generateCard'
 
@@ -95,6 +96,20 @@ export default function Game() {
     setDraftMode(next)
     setDraftPhase('idle')
     setDraftData(null)
+  }
+
+  // Timer por dica
+  const [timerMode, setTimerModeLocal]   = useState(() => getTimerMode())
+  const [timerSeconds, setTimerSeconds]  = useState(60)
+  const [timerActive, setTimerActive]    = useState(false)
+  const [timerExpired, setTimerExpired]  = useState(false)
+  const prevRevealedRef = useRef(0)
+
+  function toggleTimerMode() {
+    const next = !timerMode
+    setTimerModeLocal(next)
+    setTimerMode(next)
+    if (!next) { setTimerActive(false); setTimerSeconds(60); setTimerExpired(false) }
   }
 
   // Modo Solo
@@ -229,6 +244,51 @@ export default function Game() {
     })
   }, [state.players, addToast])
 
+  // ── Timer effects ─────────────────────────────────────────────────────────
+  const revealedLength = state.card?.revealed.length ?? 0
+
+  // Reseta e inicia o timer sempre que uma nova dica for revelada
+  useEffect(() => {
+    if (!timerMode || !state.card) return
+    if (revealedLength > prevRevealedRef.current) {
+      setTimerSeconds(60)
+      setTimerActive(true)
+      setTimerExpired(false)
+    }
+    prevRevealedRef.current = revealedLength
+  }, [revealedLength, timerMode, state.card])
+
+  // Para o timer quando a carta some (nova rodada / encerramento)
+  useEffect(() => {
+    if (!state.card) {
+      setTimerActive(false)
+      setTimerSeconds(60)
+      setTimerExpired(false)
+      prevRevealedRef.current = 0
+    }
+  }, [state.card])
+
+  // Countdown de 1s em 1s
+  useEffect(() => {
+    if (!timerActive || !timerMode) return
+    const id = setInterval(() => {
+      setTimerSeconds(s => {
+        if (s <= 1) {
+          setTimerActive(false)
+          setTimerExpired(true)
+          return 0
+        }
+        return s - 1
+      })
+    }, 1000)
+    return () => clearInterval(id)
+  }, [timerActive, timerMode])
+
+  // Para o timer quando a rodada solo termina (resultado exibido)
+  useEffect(() => {
+    if (soloPhase === 'result') { setTimerActive(false); setTimerExpired(false) }
+  }, [soloPhase])
+
   // Zoação para quem está muito atrás do líder (>25 casas)
   function checkFarBehind(excludeId = null) {
     const active = state.players.filter(p => p.active && p.id !== excludeId)
@@ -242,6 +302,8 @@ export default function Game() {
 
   // Encerramento de rodada normal com zoação
   function handleEndRound(winnerId) {
+    setTimerActive(false)
+    setTimerExpired(false)
     if (winnerId !== null) {
       const player = activePlayers.find(p => p.id === winnerId)
       if (player) {
@@ -396,6 +458,25 @@ export default function Game() {
             <span>Draft{draftMode ? ' ON' : ''}</span>
           </button>
 
+          {/* Timer mode toggle */}
+          <button
+            onClick={toggleTimerMode}
+            title={timerMode ? 'Timer ativo — clique para desativar' : 'Ativar Timer (1 min por dica)'}
+            style={{
+              ...s.btnDraft,
+              background: timerMode
+                ? 'linear-gradient(135deg, rgba(245,158,11,0.25), rgba(217,119,6,0.15))'
+                : 'rgba(255,255,255,0.05)',
+              border: timerMode
+                ? '1px solid rgba(245,158,11,0.5)'
+                : '1px solid rgba(255,255,255,0.08)',
+              color: timerMode ? '#FCD34D' : '#4B6080',
+            }}
+          >
+            <span style={{ fontSize: 14 }}>⏱</span>
+            <span>Timer{timerMode ? ' ON' : ''}</span>
+          </button>
+
           <button
             onClick={handleGenerate}
             disabled={generating || draftLoading}
@@ -488,6 +569,11 @@ export default function Game() {
             <RoundPanel reader={currentReader} revealedCount={revealedCount} card={card} onEndRound={handleEndRound}/>
           ) : (
             <ReadyBanner reader={currentReader} hasKey={hasKey} onGenerate={handleGenerate} generating={generating}/>
+          )}
+
+          {/* Timer bar */}
+          {timerMode && card && (
+            <TimerBar seconds={timerSeconds} expired={timerExpired} />
           )}
 
           {/* Card area */}
@@ -992,6 +1078,81 @@ function PlayerRow({ player, isReader, card, currentReaderId, revealedCount, win
       >
         {player.active ? '✕' : '+'}
       </button>
+    </div>
+  )
+}
+
+// ── Timer bar ──
+function TimerBar({ seconds, expired }) {
+  const radius = 18
+  const circ   = 2 * Math.PI * radius
+  const offset = circ * (1 - (expired ? 0 : seconds / 60))
+
+  const color = expired        ? '#EF4444'
+    : seconds <= 10            ? '#EF4444'
+    : seconds <= 20            ? '#F97316'
+    : seconds <= 35            ? '#F59E0B'
+    :                            '#10B981'
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      background: expired ? 'rgba(127,29,29,0.25)' : 'rgba(13,21,48,0.7)',
+      border: `1px solid ${expired ? 'rgba(239,68,68,0.45)' : 'rgba(255,255,255,0.07)'}`,
+      borderRadius: 12, padding: '7px 14px',
+      flexShrink: 0,
+      animation: expired ? 'timerPulse 0.9s ease-in-out infinite' : 'none',
+    }}>
+
+      {/* Ring */}
+      <svg width="44" height="44" viewBox="0 0 44 44" style={{ flexShrink: 0 }}>
+        <circle cx="22" cy="22" r={radius} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="3"/>
+        <circle
+          cx="22" cy="22" r={radius} fill="none"
+          stroke={color} strokeWidth="3"
+          strokeDasharray={circ} strokeDashoffset={offset}
+          strokeLinecap="round"
+          transform="rotate(-90 22 22)"
+          style={{ transition: expired ? 'none' : 'stroke-dashoffset 0.95s linear, stroke 0.4s' }}
+        />
+        <text x="22" y="27" textAnchor="middle"
+          fontSize="13" fontWeight="900" fill={color}
+          fontFamily="'Space Grotesk', sans-serif">
+          {expired ? '!' : seconds}
+        </text>
+      </svg>
+
+      {/* Label */}
+      <div style={{ flex: 1 }}>
+        {expired ? (
+          <div style={{ color: '#EF4444', fontWeight: 800, fontSize: 14, letterSpacing: '0.5px' }}>
+            ⏰ Tempo esgotado!
+          </div>
+        ) : (
+          <>
+            <div style={{ color: '#4B6080', fontSize: 9, fontWeight: 700, letterSpacing: '1.5px' }}>
+              TEMPO POR DICA
+            </div>
+            <div style={{ color, fontSize: 17, fontWeight: 800, lineHeight: 1.2, transition: 'color 0.4s' }}>
+              {seconds}s
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Progress bar */}
+      <div style={{
+        flex: 2, height: 5, borderRadius: 3,
+        background: 'rgba(255,255,255,0.06)', overflow: 'hidden',
+      }}>
+        <div style={{
+          height: '100%',
+          width: `${expired ? 0 : (seconds / 60) * 100}%`,
+          background: color, borderRadius: 3,
+          transition: expired ? 'none' : 'width 0.95s linear, background-color 0.4s',
+          boxShadow: `0 0 6px ${color}60`,
+        }}/>
+      </div>
     </div>
   )
 }
