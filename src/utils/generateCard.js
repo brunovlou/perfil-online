@@ -292,7 +292,7 @@ async function callOpenAI(prompt, maxTokens = 2048) {
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'gpt-4.1-mini',
+      model: 'gpt-5.4-mini',
       max_tokens: maxTokens,
       response_format: { type: 'json_object' },
       messages: [{ role: 'user', content: prompt }],
